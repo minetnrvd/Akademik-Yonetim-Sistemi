@@ -80,5 +80,25 @@ python -m pytest tests/test_ui_smoke.py
 - Developer guide: `project_notes/DEVELOPER_GUIDE.md`
 - Operational runbooks: `project_notes/*RUNBOOK*.md`
 
+## Screenshots
+
+### Login
+![Login Page](screenshots/login-page.png)
+
+### Admin Dashboard (TR)
+![Admin Dashboard TR](screenshots/admin-dashboard-tr.png)
+
+### Admin Dashboard (EN)
+![Admin Dashboard EN](screenshots/admin-dashboard-en.png)
+
+### Admin Health Status
+![Admin Health Status](screenshots/admin-health-status.png)
+
+### Teacher Attendance and QR
+![Teacher Attendance and QR](screenshots/teacher-attendance-qr.png)
+
+### Student Term Courses
+![Student Term Courses](screenshots/student-term-courses.png)
+
 ## License
 Internal project repository.
