@@ -1,0 +1,94 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ t('qr_code') }}{% endblock %}
+
+{% block content %}
+
+<style>
+    .qr-page {
+        min-height: calc(100vh - 120px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        overflow: hidden;
+    }
+
+    .qr-title {
+        margin: 0;
+    }
+
+    .qr-image {
+        width: clamp(260px, min(54vw, 50vh), 520px);
+        height: clamp(260px, min(54vw, 50vh), 520px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.04);
+        padding: 10px;
+        object-fit: contain;
+    }
+
+    .qr-meta {
+        width: min(960px, 100%);
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .inline-scroll {
+        margin: 0;
+        white-space: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 2px;
+    }
+
+    .inline-scroll strong {
+        color: var(--moonbeam);
+    }
+
+    .qr-help {
+        margin: 0;
+        color: #c3c3c3;
+        font-size: 13px;
+    }
+
+    .qr-actions {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+</style>
+
+<div class="qr-page">
+    <h1 class="qr-title">{{ t('qr_code') }}</h1>
+
+    <img class="qr-image"
+         src="{{ url_for('static', filename='qrcodes/' + qr_filename) }}"
+         alt="QR Code">
+
+    <div class="qr-meta">
+        <p class="inline-scroll"><strong>{{ t('token') }}:</strong> {{ token }}</p>
+        <p class="inline-scroll"><strong>{{ t('attendance_link') }}:</strong> {{ attendance_url }}</p>
+        <p class="qr-help">{{ t('qr_help_text') }}</p>
+    </div>
+
+    <div class="qr-actions">
+        <a href="{{ url_for('static', filename='qrcodes/' + qr_filename) }}" download>
+            <button type="button">{{ t('download') }}</button>
+        </a>
+        <button type="button" onclick="window.print()">{{ t('print_or_pdf') }}</button>
+        <a href="{{ url_for('teacher_dashboard') }}">
+            <button type="button">{{ t('back') }}</button>
+        </a>
+    </div>
+</div>
+
+{% endblock %}
+
+
+
+

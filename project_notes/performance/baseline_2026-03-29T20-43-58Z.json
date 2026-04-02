@@ -1,0 +1,56 @@
+{
+  "captured_at_utc": "2026-03-29T20-43-58Z",
+  "warmup": 5,
+  "iterations": 30,
+  "python_env": "local-test-client",
+  "results": [
+    {
+      "path": "/health",
+      "iterations": 30,
+      "avg_ms": 0.28,
+      "p50_ms": 0.27,
+      "p95_ms": 0.35,
+      "max_ms": 0.39,
+      "error_rate_pct": 0.0,
+      "status_counts": {
+        "200": 30
+      }
+    },
+    {
+      "path": "/login",
+      "iterations": 30,
+      "avg_ms": 0.29,
+      "p50_ms": 0.29,
+      "p95_ms": 0.33,
+      "max_ms": 0.34,
+      "error_rate_pct": 0.0,
+      "status_counts": {
+        "200": 30
+      }
+    },
+    {
+      "path": "/admin/security/request-metrics",
+      "iterations": 30,
+      "avg_ms": 0.72,
+      "p50_ms": 0.69,
+      "p95_ms": 0.88,
+      "max_ms": 1.11,
+      "error_rate_pct": 0.0,
+      "status_counts": {
+        "200": 30
+      }
+    },
+    {
+      "path": "/teacher_dashboard",
+      "iterations": 30,
+      "avg_ms": 2.68,
+      "p50_ms": 2.61,
+      "p95_ms": 3.18,
+      "max_ms": 3.66,
+      "error_rate_pct": 0.0,
+      "status_counts": {
+        "200": 30
+      }
+    }
+  ]
+}

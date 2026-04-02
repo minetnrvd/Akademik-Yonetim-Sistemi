@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lang_text('Admin Kullanıcı Envanteri', 'Admin User Inventory') }}{% endblock %}
+
+{% block content %}
+<style>
+    .inventory-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .inventory-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .inventory-note {
+        color: var(--text-soft);
+        margin: 0;
+        font-size: 14px;
+    }
+
+    .inventory-filters {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .inventory-filters input,
+    .inventory-filters select {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .inventory-filters .actions {
+        display: flex;
+        gap: 8px;
+        align-items: end;
+    }
+
+    .inventory-cards {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .inventory-card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 10px;
+    }
+
+    .inventory-card .label {
+        color: var(--text-soft);
+        font-size: 12px;
+        margin-bottom: 4px;
+    }
+
+    .inventory-card .value {
+        color: var(--moonbeam);
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .inventory-table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: auto;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .inventory-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 920px;
+    }
+
+    .inventory-table th,
+    .inventory-table td {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        text-align: left;
+        font-size: 13px;
+    }
+
+    .inventory-table th {
+        color: var(--moonbeam);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .inventory-table td {
+        color: var(--text-soft);
+        vertical-align: top;
+        word-break: break-word;
+    }
+
+    .role-update-form {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .role-update-form select {
+        min-width: 110px;
+    }
+
+    @media (max-width: 1024px) {
+        .inventory-filters,
+        .inventory-cards {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        .inventory-filters,
+        .inventory-cards {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="inventory-shell">
+    <div class="inventory-top">
+        <h1>{{ lang_text('Admin Kullanıcı Envanteri', 'Admin User Inventory') }}</h1>
+        <a href="{{ url_for('admin_dashboard') }}"><button type="button">{{ lang_text('← Admin Paneli', 'Back to Admin Dashboard') }}</button></a>
+    </div>
+
+    <p class="inventory-note">{{ lang_text('Rol ve profil tutarlılığı özetiyle kullanıcı envanteri.', 'User inventory with role and profile consistency summary.') }}</p>
+
+    <form method="get" class="inventory-filters">
+        <select name="role">
+            <option value="" {% if not filters.role %}selected{% endif %}>{{ lang_text('Tüm roller', 'All roles') }}</option>
+            <option value="student" {% if filters.role == 'student' %}selected{% endif %}>{{ lang_text('Öğrenci', 'Student') }}</option>
+            <option value="teacher" {% if filters.role == 'teacher' %}selected{% endif %}>{{ lang_text('Öğretmen', 'Teacher') }}</option>
+            <option value="admin" {% if filters.role == 'admin' %}selected{% endif %}>{{ lang_text('Admin', 'Admin') }}</option>
+        </select>
+        <input type="text" name="q" value="{{ filters.q }}" placeholder="{{ lang_text('Ad/e-posta ile ara', 'Search by name/email') }}">
+        <input type="number" name="limit" min="1" max="1000" value="{{ filters.limit }}">
+        <div class="actions">
+            <button type="submit">{{ lang_text('Uygula', 'Apply') }}</button>
+            <a href="{{ url_for('admin_user_inventory') }}"><button type="button">{{ lang_text('Temizle', 'Clear') }}</button></a>
+        </div>
+    </form>
+
+    <div class="inventory-cards">
+        <article class="inventory-card">
+            <div class="label">{{ lang_text('Yüklenen Kullanıcı', 'Loaded Users') }}</div>
+            <div class="value">{{ summary.total_loaded }}</div>
+        </article>
+        <article class="inventory-card">
+            <div class="label">{{ lang_text('Öğrenciler', 'Students') }}</div>
+            <div class="value">{{ summary.student_count }}</div>
+        </article>
+        <article class="inventory-card">
+            <div class="label">{{ lang_text('Öğretmenler', 'Teachers') }}</div>
+            <div class="value">{{ summary.teacher_count }}</div>
+        </article>
+        <article class="inventory-card">
+            <div class="label">{{ lang_text('Adminler', 'Admins') }}</div>
+            <div class="value">{{ summary.admin_count }}</div>
+        </article>
+    </div>
+
+    <div class="inventory-table-wrap">
+        <table class="inventory-table">
+            <thead>
+                <tr>
+                    <th>{{ lang_text('Kullanıcı ID', 'User ID') }}</th>
+                    <th>{{ lang_text('Ad', 'Name') }}</th>
+                    <th>{{ lang_text('E-posta', 'Email') }}</th>
+                    <th>{{ lang_text('Rol', 'Role') }}</th>
+                    <th>{{ lang_text('Hesap Durumu', 'Account Status') }}</th>
+                    <th>{{ lang_text('Öğretmen Ders Sayısı', 'Teacher Class Count') }}</th>
+                    <th>{{ lang_text('Öğrenci Profili', 'Student Profile') }}</th>
+                    <th>{{ lang_text('Rol Güncelle', 'Role Update') }}</th>
+                    <th>{{ lang_text('Kilit', 'Lock Action') }}</th>
+                    <th>{{ lang_text('Şifre Sıfırla', 'Password Reset') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if users %}
+                    {% for user in users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.name }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>{{ user.role }}</td>
+                            <td>{{ lang_text('Kilitli', 'Locked') if user.is_locked else lang_text('Aktif', 'Active') }}</td>
+                            <td>{{ user.teacher_class_count }}</td>
+                            <td>{{ lang_text('Var', 'Yes') if user.student_profile_exists else lang_text('Yok', 'No') }}</td>
+                            <td>
+                                {% if user.id == current_admin_user_id %}
+                                    <span>{{ lang_text('İzin verilmez (kendiniz)', 'Not allowed (self)') }}</span>
+                                {% else %}
+                                    <form method="post" action="{{ url_for('admin_update_user_role', user_id=user.id) }}" class="role-update-form">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <select name="role">
+                                            {% for role in role_options %}
+                                                <option value="{{ role }}" {% if role == user.role %}selected{% endif %}>{{ role }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit">{{ lang_text('Güncelle', 'Update') }}</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.id == current_admin_user_id %}
+                                    <span>{{ lang_text('İzin verilmez (kendiniz)', 'Not allowed (self)') }}</span>
+                                {% else %}
+                                    <form method="post" action="{{ url_for('admin_toggle_user_lock', user_id=user.id) }}" class="role-update-form">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="action" value="{{ 'unlock' if user.is_locked else 'lock' }}">
+                                        <button type="submit">{{ lang_text('Kilidi Aç', 'Unlock') if user.is_locked else lang_text('Kilitle', 'Lock') }}</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.id == current_admin_user_id %}
+                                    <span>{{ lang_text('İzin verilmez (kendiniz)', 'Not allowed (self)') }}</span>
+                                {% else %}
+                                    <form method="post" action="{{ url_for('admin_reset_user_password', user_id=user.id) }}" class="role-update-form">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="password" name="new_password" placeholder="{{ lang_text('Yeni şifre', 'New password') }}" required>
+                                        <input type="password" name="confirm_password" placeholder="{{ lang_text('Onay', 'Confirm') }}" required>
+                                        <button type="submit">{{ lang_text('Sıfırla', 'Reset') }}</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="10">{{ lang_text('Mevcut filtre için kullanıcı bulunamadı.', 'No user found for current filter.') }}</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

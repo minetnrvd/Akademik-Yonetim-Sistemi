@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lang_text('Sistem Sağlık Durumu', 'Health Status') }}{% endblock %}
+
+{% block content %}
+<style>
+    .health-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .health-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .health-cards {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .health-card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 10px;
+    }
+
+    .health-card .label {
+        color: var(--text-soft);
+        font-size: 12px;
+        margin-bottom: 4px;
+    }
+
+    .health-card .value {
+        color: var(--moonbeam);
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .health-table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: auto;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .health-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 760px;
+    }
+
+    .health-table th,
+    .health-table td {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        text-align: left;
+        font-size: 13px;
+    }
+
+    .health-table th {
+        color: var(--moonbeam);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .health-table td {
+        color: var(--text-soft);
+        vertical-align: top;
+        word-break: break-word;
+    }
+
+    @media (max-width: 1024px) {
+        .health-cards {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        .health-cards {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="health-shell">
+    <div class="health-top">
+        <h1>{{ lang_text('Sistem Sağlık Durumu', 'Health Status') }}</h1>
+        <a href="{{ url_for('admin_dashboard') }}"><button type="button">← {{ lang_text('Admin Paneli', 'Admin Dashboard') }}</button></a>
+    </div>
+
+    <div class="health-cards">
+        <article class="health-card">
+            <div class="label">{{ lang_text('Durum', 'Status') }}</div>
+            <div class="value">{{ health.status }}</div>
+        </article>
+        <article class="health-card">
+            <div class="label">{{ lang_text('Oluşturulma (UTC)', 'Generated At (UTC)') }}</div>
+            <div class="value">{{ health.generated_at_utc }}</div>
+        </article>
+        <article class="health-card">
+            <div class="label">{{ lang_text('Başlangıç (UTC)', 'Since (UTC)') }}</div>
+            <div class="value">{{ health.since_utc }}</div>
+        </article>
+        <article class="health-card">
+            <div class="label">{{ lang_text('Veritabanı', 'Database') }}</div>
+            <div class="value">{{ 'OK' if health.database_ok else lang_text('HATA', 'ERROR') }}</div>
+        </article>
+    </div>
+
+    <div class="health-table-wrap">
+        <table class="health-table">
+            <thead>
+                <tr>
+                    <th>{{ lang_text('Metrik', 'Metric') }}</th>
+                    <th>{{ lang_text('Değer', 'Value') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>{{ lang_text('Toplam İstek', 'Total Requests') }}</td><td>{{ health.totals.requests }}</td></tr>
+                <tr><td>{{ lang_text('4xx Hatası', 'Error 4xx') }}</td><td>{{ health.totals.error_4xx }}</td></tr>
+                <tr><td>{{ lang_text('5xx Hatası', 'Error 5xx') }}</td><td>{{ health.totals.error_5xx }}</td></tr>
+                <tr><td>{{ lang_text('Hata Oranı %', 'Error Rate %') }}</td><td>{{ health.totals.error_rate_pct }}</td></tr>
+                <tr><td>{{ lang_text('Ort. Gecikme (ms)', 'Latency Avg (ms)') }}</td><td>{{ health.latency_ms.global_avg }}</td></tr>
+                <tr><td>{{ lang_text('P95 Gecikme Tahmini (ms)', 'Latency P95 Estimate (ms)') }}</td><td>{{ health.latency_ms.p95_estimate }}</td></tr>
+                <tr><td>{{ lang_text('Uyarı Hata Oranı %', 'Warn Error Rate %') }}</td><td>{{ health.thresholds.warn_error_rate_pct }}</td></tr>
+                <tr><td>{{ lang_text('Uyarı P95 (ms)', 'Warn P95 (ms)') }}</td><td>{{ health.thresholds.warn_p95_ms }}</td></tr>
+                <tr><td>{{ lang_text('Yavaş Eşiği (ms)', 'Slow Threshold (ms)') }}</td><td>{{ health.latency_ms.slow_threshold }}</td></tr>
+                <tr><td>{{ lang_text('Nedenler', 'Reasons') }}</td><td>{{ health.reasons|join(', ') if health.reasons else lang_text('yok', 'none') }}</td></tr>
+                <tr><td>{{ lang_text('Veritabanı Hatası', 'Database Error') }}</td><td>{{ health.database_error or '-' }}</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

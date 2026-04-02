@@ -1,0 +1,455 @@
+{
+  "metrics_configuration": {
+    "version": "1.0",
+    "date": "2026-03-30",
+    "program": "40-day_production_operationalization",
+    "description": "Target metrics and thresholds for production deployment",
+    "performance_metrics": {
+      "endpoint_latency": {
+        "description": "HTTP endpoint response time (95th percentile)",
+        "unit": "milliseconds",
+        "targets": {
+          "health_endpoint": {
+            "target_p95": 100,
+            "target_p99": 200,
+            "alert_threshold": 500,
+            "criticality": "high"
+          },
+          "login_endpoint": {
+            "target_p95": 500,
+            "target_p99": 1000,
+            "alert_threshold": 5000,
+            "criticality": "high"
+          },
+          "teacher_dashboard": {
+            "target_p95": 2000,
+            "target_p99": 4000,
+            "alert_threshold": 8000,
+            "criticality": "high"
+          },
+          "student_dashboard": {
+            "target_p95": 1000,
+            "target_p99": 2000,
+            "alert_threshold": 8000,
+            "criticality": "medium"
+          },
+          "attendance_scan": {
+            "target_p95": 500,
+            "target_p99": 1000,
+            "alert_threshold": 5000,
+            "criticality": "critical"
+          },
+          "aggregate_all_endpoints": {
+            "target_p95": 5000,
+            "target_p99": 8000,
+            "alert_threshold": 10000,
+            "criticality": "high"
+          }
+        }
+      },
+      "error_rate": {
+        "description": "Percentage of requests returning 5xx errors",
+        "unit": "percent",
+        "target_global": 1.0,
+        "alert_threshold": 5.0,
+        "criticality": "critical",
+        "breakdown_by_endpoint": true
+      },
+      "request_throughput": {
+        "description": "Successful requests per second",
+        "unit": "rps",
+        "target_min": 10,
+        "target_max": 1000,
+        "alert_below": 5,
+        "alert_above": 2000,
+        "criticality": "medium"
+      }
+    },
+    "infrastructure_metrics": {
+      "uptime": {
+        "description": "Server availability (uptime / total time)",
+        "unit": "percent",
+        "target": 99.9,
+        "alert_threshold": 98.0,
+        "criticality": "critical",
+        "measurement_window": "30_days_trailing"
+      },
+      "cpu_utilization": {
+        "description": "CPU usage percentage",
+        "unit": "percent",
+        "target_normal": 30,
+        "target_peak": 70,
+        "alert_threshold": 85,
+        "criticality": "high",
+        "measurement": "5_minute_average"
+      },
+      "memory_utilization": {
+        "description": "RAM usage percentage",
+        "unit": "percent",
+        "target_normal": 40,
+        "target_peak": 75,
+        "alert_threshold": 90,
+        "criticality": "high",
+        "measurement": "5_minute_average"
+      },
+      "disk_utilization": {
+        "description": "Disk space usage percentage",
+        "unit": "percent",
+        "target": 60,
+        "alert_warning": 75,
+        "alert_critical": 90,
+        "criticality": "high",
+        "check_interval": "hourly"
+      },
+      "disk_iops": {
+        "description": "Database disk I/O operations per second",
+        "unit": "iops",
+        "target_read": 500,
+        "target_write": 100,
+        "alert_threshold_read": 5000,
+        "alert_threshold_write": 1000,
+        "criticality": "medium",
+        "measurement": "5_minute_average"
+      },
+      "network_bandwidth": {
+        "description": "Network traffic (ingress + egress)",
+        "unit": "mbps",
+        "target": 50,
+        "alert_threshold": 500,
+        "criticality": "medium",
+        "measurement": "5_minute_average"
+      }
+    },
+    "database_metrics": {
+      "connection_pool_usage": {
+        "description": "Active database connections / pool size",
+        "unit": "percent",
+        "target": 30,
+        "alert_threshold": 80,
+        "criticality": "high",
+        "pool_size": 50
+      },
+      "query_latency": {
+        "description": "Database query execution time (95th percentile)",
+        "unit": "milliseconds",
+        "target_p95": 100,
+        "target_p99": 500,
+        "alert_threshold": 2000,
+        "criticality": "high",
+        "measurement": "per_query"
+      },
+      "slow_query_rate": {
+        "description": "Queries exceeding 1 second threshold",
+        "unit": "count_per_hour",
+        "target": 0,
+        "alert_threshold": 10,
+        "criticality": "medium"
+      },
+      "transaction_duration": {
+        "description": "Database transaction completion time",
+        "unit": "milliseconds",
+        "target_p95": 500,
+        "target_p99": 2000,
+        "alert_threshold": 10000,
+        "criticality": "high"
+      },
+      "replication_lag": {
+        "description": "Time behind primary database (if replicated)",
+        "unit": "seconds",
+        "target": 0,
+        "alert_threshold": 5,
+        "criticality": "high"
+      }
+    },
+    "availability_metrics": {
+      "health_check_passing": {
+        "description": "Health endpoint returning 200 OK with valid payload",
+        "unit": "boolean",
+        "target": true,
+        "check_interval": "60_seconds",
+        "criticality": "critical"
+      },
+      "database_connectivity": {
+        "description": "Successful connection to production database",
+        "unit": "boolean",
+        "target": true,
+        "check_interval": "60_seconds",
+        "criticality": "critical"
+      },
+      "backup_completion": {
+        "description": "Daily backup completed and verified",
+        "unit": "boolean",
+        "target": true,
+        "check_time": "daily_02_00_utc",
+        "criticality": "critical"
+      },
+      "log_aggregation_lag": {
+        "description": "Time from application log write to aggregation store",
+        "unit": "seconds",
+        "target": 1,
+        "alert_threshold": 5,
+        "criticality": "medium"
+      }
+    },
+    "security_metrics": {
+      "failed_login_attempts": {
+        "description": "Failed authentication attempts per hour",
+        "unit": "count_per_hour",
+        "normal_threshold": 100,
+        "alert_threshold": 500,
+        "criticality": "high"
+      },
+      "unauthorized_access_attempts": {
+        "description": "Permission denied / unauthorized responses",
+        "unit": "count_per_hour",
+        "normal_threshold": 50,
+        "alert_threshold": 200,
+        "criticality": "medium"
+      },
+      "csrf_token_validation_failures": {
+        "description": "CSRF token mismatches (CSRF attack detection)",
+        "unit": "count_per_hour",
+        "normal_threshold": 0,
+        "alert_threshold": 10,
+        "criticality": "high"
+      },
+      "rate_limit_triggers": {
+        "description": "Rate-limited requests (brute force detection)",
+        "unit": "count_per_hour",
+        "normal_threshold": 5,
+        "alert_threshold": 50,
+        "criticality": "medium"
+      },
+      "audit_log_discrepancies": {
+        "description": "Events in app logs but missing in audit trail",
+        "unit": "count_per_day",
+        "target": 0,
+        "alert_threshold": 1,
+        "criticality": "high"
+      }
+    },
+    "operational_metrics": {
+      "deployment_frequency": {
+        "description": "Number of production deployments per week",
+        "unit": "count_per_week",
+        "target_min": 1,
+        "target_max": 10,
+        "criticality": "medium"
+      },
+      "deployment_success_rate": {
+        "description": "Successful deployments / total deployment attempts",
+        "unit": "percent",
+        "target": 100,
+        "alert_threshold": 95,
+        "criticality": "high"
+      },
+      "mean_time_to_detect_mttd": {
+        "description": "Time to detect critical issue from occurrence",
+        "unit": "minutes",
+        "target": 5,
+        "alert_threshold": 15,
+        "criticality": "high"
+      },
+      "mean_time_to_recover_mttr": {
+        "description": "Time to recover from critical outage",
+        "unit": "minutes",
+        "target": 15,
+        "alert_threshold": 60,
+        "criticality": "critical"
+      },
+      "incident_frequency": {
+        "description": "Critical incidents per month",
+        "unit": "count_per_month",
+        "target": 0,
+        "alert_threshold": 2,
+        "criticality": "high"
+      },
+      "test_coverage": {
+        "description": "Automated test pass rate",
+        "unit": "percent",
+        "target": 100,
+        "alert_threshold": 95,
+        "criticality": "medium"
+      }
+    },
+    "compliance_metrics": {
+      "backup_verification_success": {
+        "description": "Backup integrity checks passing",
+        "unit": "percent",
+        "target": 100,
+        "alert_threshold": 95,
+        "criticality": "critical",
+        "frequency": "daily"
+      },
+      "security_scan_pass_rate": {
+        "description": "Dependency and secret scans passing",
+        "unit": "percent",
+        "target": 100,
+        "alert_threshold": 95,
+        "criticality": "high",
+        "frequency": "weekly"
+      },
+      "configuration_audit_pass_rate": {
+        "description": "Configuration compliance checks passing",
+        "unit": "percent",
+        "target": 100,
+        "alert_threshold": 95,
+        "criticality": "high",
+        "frequency": "weekly"
+      }
+    },
+    "slo_definitions": {
+      "slo_availability": {
+        "description": "System uptime SLO",
+        "target": 99.9,
+        "error_budget": "43.2 minutes per 30 days",
+        "window": "rolling_30_days"
+      },
+      "slo_latency_p95": {
+        "description": "Aggregate latency SLO (95th percentile)",
+        "target": "5000ms",
+        "error_budget": "10% of requests allowed to exceed",
+        "window": "rolling_hour"
+      },
+      "slo_error_rate": {
+        "description": "API error rate SLO",
+        "target": "< 1%",
+        "error_budget": "99 errors per 10k requests",
+        "window": "rolling_hour"
+      }
+    },
+    "alerting_rules": {
+      "critical_alerts": [
+        {
+          "name": "HealthCheckFailing",
+          "condition": "health_endpoint_response != 200",
+          "duration": "2_minutes",
+          "actions": ["page_oncall", "page_manager"]
+        },
+        {
+          "name": "DatabaseDown",
+          "condition": "database_check_failed",
+          "duration": "1_minute",
+          "actions": ["page_oncall", "page_manager", "escalate_db_team"]
+        },
+        {
+          "name": "HighErrorRate",
+          "condition": "error_rate_5xx > 5%",
+          "duration": "5_minutes",
+          "actions": ["page_oncall", "trigger_rollback_check"]
+        },
+        {
+          "name": "CriticalLatency",
+          "condition": "latency_p95 > 10000ms",
+          "duration": "2_minutes",
+          "actions": ["page_oncall", "enable_circuit_breaker"]
+        }
+      ],
+      "high_alerts": [
+        {
+          "name": "ElevatedCPU",
+          "condition": "cpu_utilization > 85%",
+          "duration": "5_minutes",
+          "actions": ["notify_ops", "trigger_autoscale"]
+        },
+        {
+          "name": "DiskFull",
+          "condition": "disk_utilization > 90%",
+          "duration": "1_minute",
+          "actions": ["notify_ops", "trigger_disk_cleanup"]
+        },
+        {
+          "name": "HighMemory",
+          "condition": "memory_utilization > 90%",
+          "duration": "5_minutes",
+          "actions": ["notify_ops", "trigger_service_restart"]
+        }
+      ],
+      "medium_alerts": [
+        {
+          "name": "ElevatedLatency",
+          "condition": "latency_p95 > 5000ms",
+          "duration": "10_minutes",
+          "actions": ["notify_team"]
+        },
+        {
+          "name": "SlowQueries",
+          "condition": "slow_query_count > 10 per hour",
+          "duration": "ongoing",
+          "actions": ["notify_dba", "log_metrics"]
+        }
+      ]
+    },
+    "measurement_windows": {
+      "real_time": "60_seconds",
+      "short_term": "5_minutes",
+      "medium_term": "1_hour",
+      "long_term": "24_hours",
+      "compliance_window": "30_days_rolling"
+    },
+    "aggregate_slo_validation": {
+      "description": "Combined SLO check across all metrics",
+      "checks": [
+        "health_endpoint responding",
+        "error_rate < 1%",
+        "latency_p95 < 5s",
+        "uptime > 99.9%",
+        "backup_verified daily",
+        "security_scan passing"
+      ],
+      "pass_criteria": "all checks green",
+      "frequency": "every 5 minutes"
+    }
+  },
+  "baseline_measurements": {
+    "date": "2026-03-29",
+    "source": "day35_performance_report",
+    "summary": {
+      "health_endpoint_avg": "0.28ms",
+      "login_endpoint_avg": "0.29ms",
+      "teacher_dashboard_avg": "2.68ms",
+      "error_rate": "0.0%",
+      "uptime": "100% (lab environment)"
+    }
+  },
+  "post_deployment_checkpoints": {
+    "day_10_infrastructure_complete": {
+      "metrics_to_validate": [
+        "infrastructure_latency_baseline",
+        "cpu_utilization_normal_range",
+        "memory_utilization_stable",
+        "uptime_99.9%_achievable"
+      ]
+    },
+    "day_20_database_migration_complete": {
+      "metrics_to_validate": [
+        "postgresql_latency_within_10%_of_sqlite",
+        "connection_pool_usage_normal",
+        "query_performance_optimized",
+        "backup_restore_success"
+      ]
+    },
+    "day_30_ci_cd_complete": {
+      "metrics_to_validate": [
+        "deployment_success_rate_100%",
+        "monitoring_metrics_flowing",
+        "averaging_alerts_firing"
+      ]
+    },
+    "day_37_security_complete": {
+      "metrics_to_validate": [
+        "no_critical_cves",
+        "no_secrets_in_git",
+        "canary_rollout_practiced"
+      ]
+    },
+    "day_40_go_live_complete": {
+      "metrics_to_validate": [
+        "production_uptime_stable_24h",
+        "all_slos_green",
+        "log_aggregation_working",
+        "backups_verified"
+      ]
+    }
+  }
+}

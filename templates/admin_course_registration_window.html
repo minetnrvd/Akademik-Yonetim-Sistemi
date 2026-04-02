@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ lang_text('Ders Alma-Bırakma Yönetimi', 'Add-Drop Management') }}{% endblock %}
+{% block content %}
+<style>
+    .shell { display:flex; flex-direction:column; gap:14px; }
+    .top { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+    .top h1 { margin:0; }
+    .grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
+    .card { border:1px solid var(--line); border-radius:16px; padding:12px; background:rgba(255,255,255,0.04); }
+    .card h2 { margin:0 0 8px; color:var(--moonbeam); font-size:17px; }
+    .form-stack { display:flex; flex-direction:column; gap:8px; }
+    .form-stack input, .form-stack select, .form-stack button { width:100%; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { border-bottom:1px solid var(--line); text-align:left; padding:8px; }
+    th { color:var(--text-soft); font-weight:700; }
+    @media (max-width: 960px) { .grid { grid-template-columns:1fr; } }
+</style>
+
+<div class="shell">
+    <div class="top">
+        <h1>{{ lang_text('Ders Alma-Bırakma Yönetimi', 'Add-Drop Management') }}</h1>
+        <a href="{{ url_for('admin_dashboard') }}"><button type="button">{{ lang_text('Admin Paneli', 'Admin Dashboard') }}</button></a>
+    </div>
+
+    <div class="grid">
+        <section class="card">
+            <h2>{{ lang_text('Dönem Penceresi ve Kurallar', 'Term Window and Rules') }}</h2>
+            <form class="form-stack" method="post" action="{{ url_for('admin_course_registration_window') }}">
+                <input type="hidden" name="action" value="save_policy">
+                <label>{{ lang_text('Başlangıç', 'Start') }}</label>
+                <input type="datetime-local" name="add_drop_start" value="{{ policy.add_drop_start.strftime('%Y-%m-%dT%H:%M') if policy and policy.add_drop_start else '' }}">
+                <label>{{ lang_text('Bitiş', 'End') }}</label>
+                <input type="datetime-local" name="add_drop_end" value="{{ policy.add_drop_end.strftime('%Y-%m-%dT%H:%M') if policy and policy.add_drop_end else '' }}">
+                <label>{{ lang_text('Min Kredi', 'Min Credits') }}</label>
+                <input type="number" name="min_credits" min="0" value="{{ policy.min_credits if policy else 0 }}">
+                <label>{{ lang_text('Max Kredi', 'Max Credits') }}</label>
+                <input type="number" name="max_credits" min="1" value="{{ policy.max_credits if policy else 30 }}">
+                <label><input type="checkbox" name="is_locked" {% if policy and policy.is_locked %}checked{% endif %}> {{ lang_text('İşlemleri kilitle', 'Lock operations') }}</label>
+                <button type="submit">{{ lang_text('Kaydet', 'Save') }}</button>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>{{ lang_text('Admin Override', 'Admin Override') }}</h2>
+            <form class="form-stack" method="post" action="{{ url_for('admin_course_registration_override') }}">
+                <label>{{ lang_text('Öğrenci', 'Student') }}</label>
+                <select name="student_id" required>
+                    {% for s in students %}
+                        <option value="{{ s.id }}">{{ s.name }} ({{ s.email }})</option>
+                    {% endfor %}
+                </select>
+                <label>{{ lang_text('Ders', 'Course') }}</label>
+                <select name="course_id" required>
+                    {% for c in courses %}
+                        <option value="{{ c.id }}">{{ c.code }} - {{ c.title }}</option>
+                    {% endfor %}
+                </select>
+                <label>{{ lang_text('İşlem', 'Action') }}</label>
+                <select name="action" required>
+                    <option value="add">{{ lang_text('Ders Ekle', 'Add Course') }}</option>
+                    <option value="drop">{{ lang_text('Ders Bırak', 'Drop Course') }}</option>
+                </select>
+                <button type="submit">{{ lang_text('Override Uygula', 'Apply Override') }}</button>
+            </form>
+        </section>
+    </div>
+
+    <section class="card">
+        <h2>{{ lang_text('Son İşlem Kayıtları', 'Recent Operation Records') }}</h2>
+        {% if recent_audits %}
+        <table>
+            <thead>
+                <tr><th>{{ lang_text('Tarih', 'Date') }}</th><th>{{ lang_text('Yapan', 'Actor') }}</th><th>{{ lang_text('Öğrenci', 'Student') }}</th><th>{{ lang_text('Ders', 'Course') }}</th><th>{{ lang_text('Aksiyon', 'Action') }}</th><th>{{ lang_text('Detay', 'Detail') }}</th></tr>
+            </thead>
+            <tbody>
+                {% for row in recent_audits %}
+                <tr>
+                    <td>{{ row.created_at.strftime('%d-%m-%Y %H:%M') if row.created_at else '-' }}</td>
+                    <td>{{ row.actor_user.name if row.actor_user else '-' }}</td>
+                    <td>{{ row.student.user.name if row.student and row.student.user else '-' }}</td>
+                    <td>{{ row.course.code if row.course else '-' }}</td>
+                    <td>{{ row.action }}</td>
+                    <td>{{ row.detail or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:var(--text-soft);">{{ lang_text('Henüz kayıt yok.', 'No records yet.') }}</p>
+        {% endif %}
+    </section>
+</div>
+
+{% endblock %}

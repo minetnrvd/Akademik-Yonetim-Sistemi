@@ -1,0 +1,32 @@
+﻿{
+    "started_at_utc":  "2026-04-01T19:33:32.2756994Z",
+    "status":  "ok",
+    "steps":  [
+                  {
+                      "name":  "Backup creation",
+                      "passed":  true,
+                      "detail":  "backup_dir=C:\\Uygulama\\qr_attandance_project\\backups\\drill_20260401_223332"
+                  },
+                  {
+                      "name":  "Release regression tests",
+                      "passed":  true,
+                      "detail":  "........2026-04-01 22:33:38,039 INFO app EMAIL_DRY_RUN to=eminetan2015@gmail.com subject=Dry Run\r\n2026-04-01 22:33:38,040 INFO app EMAIL_DRY_RUN to=teacher.target.7bbfafdc@example.com subject=Dry Run\r\n................................2026-04-01 22:33:40,532 WARNING app Permission denied: user_id=7 role=teacher endpoint=student_account permission=student.account.update method=GET path=/student/account ip=None\r\n..2026-04-01 22:33:40,534 WARNING app Permission denied: user_id=42 role=student endpoint=teacher_dashboard permission=teacher.dashboard.view method=GET path=/teacher_dashboard ip=None\r\n......................................2026-04-01 22:33:40,548 WARNING app Student event ownership denied: user_id=42 student_id=42 event_id=8 endpoint=student_dashboard\r\n..2026-04-01 22:33:40,549 WARNING app Student membership denied: user_id=42 student_id=42 class_id=7 endpoint=student_class_history\r\n..........2026-04-01 22:33:40,560 WARNING app Teacher ownership denied: user_id=42 class_id=10 endpoint=session_stats\r\n.2026-04-01 22:33:40,560 WARNING app Teacher ownership denied: user_id=42 class_id=10 endpoint=class_detail\r\n...\r\n----------------------------------------------------------------------\r\nRan 96 tests in 5.613s\r\nSystem.Management.Automation.RemoteException\r\nOK"
+                  },
+                  {
+                      "name":  "Release UAT smoke",
+                      "passed":  true,
+                      "detail":  "2026-04-01 22:33:43,852 WARNING app Slow request detected: endpoint=admin_class_assignments method=GET status=200 duration_ms=772.49\r\nUAT smoke report saved: project_notes/uat/uat_smoke_2026-04-01T19-33-44Z.json\r\nPass rate: 10/10 (100.0%)\r\n[PASS] Health endpoint responds with snapshot - status_code=200, keys=[\u0027database_error\u0027, \u0027database_ok\u0027, \u0027generated_at_utc\u0027, \u0027latency_ms\u0027, \u0027reasons\u0027]\r\n[PASS] Login page is reachable - status_code=200\r\n[PASS] Admin can open user inventory - status_code=200\r\n[PASS] Admin can open request metrics page - status_code=200\r\n[PASS] Admin assignment form contains CSRF token field - status_code=200, csrf_field=True\r\n[PASS] Teacher can open dashboard - status_code=200\r\n[PASS] Teacher is blocked from admin inventory - status_code=302\r\n[PASS] Teacher dashboard average latency within threshold - avg_ms=3.51, threshold_ms=8.0\r\n[PASS] Student can open dashboard - status_code=200\r\n[PASS] Student is blocked from teacher dashboard - status_code=302"
+                  },
+                  {
+                      "name":  "Rollback restore",
+                      "passed":  true,
+                      "detail":  "restore_dir=C:\\Uygulama\\qr_attandance_project\\restore_drill\\drill_20260401_223332"
+                  },
+                  {
+                      "name":  "Rollback verify hash",
+                      "passed":  true,
+                      "detail":  "VERIFY_OK backup_sha256=069329497DA473E6797E826FFA5DA8C0F17A2DA351510BFB5E095BF036E6464B"
+                  }
+              ],
+    "finished_at_utc":  "2026-04-01T19:33:44.6522577Z"
+}

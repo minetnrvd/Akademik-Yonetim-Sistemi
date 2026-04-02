@@ -1,0 +1,45 @@
+{
+  "captured_at_utc": "2026-04-01T19:26:35Z",
+  "status": "approved",
+  "scope": "Day 14 - final test and quality control",
+  "quality_gates": [
+    {
+      "name": "i18n consistency check",
+      "passed": true,
+      "detail": {
+        "missing_key_count": 0,
+        "message": "i18n check passed"
+      }
+    },
+    {
+      "name": "Full automated regression",
+      "passed": true,
+      "detail": {
+        "command": "python -m pytest",
+        "result": "99 passed"
+      }
+    },
+    {
+      "name": "Security and permission regression",
+      "passed": true,
+      "detail": {
+        "command": "python -m pytest tests/test_permissions.py",
+        "result": "96 passed"
+      }
+    },
+    {
+      "name": "UI smoke tests",
+      "passed": true,
+      "detail": {
+        "command": "python -m pytest tests/test_ui_smoke.py",
+        "result": "3 passed"
+      }
+    }
+  ],
+  "delivered_changes": [
+    "README and user/developer guides added for operational handoff.",
+    "Base template accessibility polish (skip link, focus-visible, reduced-motion support, aria-live flash region).",
+    "Login hardening and security headers retained from Day 10 work and covered by tests."
+  ],
+  "release_readiness": "ready"
+}

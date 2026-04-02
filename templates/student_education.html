@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<style>
+    .edu-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .edu-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .edu-section {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .section-title {
+        margin: 0;
+        color: var(--moonbeam);
+        font-size: 18px;
+    }
+
+    .edu-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .edu-item {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .edu-label {
+        font-size: 12px;
+        color: var(--text-soft);
+        margin-bottom: 6px;
+    }
+
+    .edu-value {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--moonbeam);
+        word-break: break-word;
+    }
+
+    @media (max-width: 760px) {
+        .edu-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="edu-shell">
+    <div class="edu-top">
+        <h1>{{ title }}</h1>
+        <a href="{{ url_for('student_dashboard') }}"><button type="button">{{ t('back_to_home') }}</button></a>
+    </div>
+
+    <section class="edu-section">
+        <h2 class="section-title">{{ section_title }}</h2>
+        <div class="edu-grid">
+            {% for label, value in details %}
+                <article class="edu-item">
+                    <div class="edu-label">{{ label }}</div>
+                    <div class="edu-value">{{ value }}</div>
+                </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="edu-section">
+        <h2 class="section-title">{{ highschool_title }}</h2>
+        <div class="edu-grid">
+            {% for label, value in highschool_details %}
+                <article class="edu-item">
+                    <div class="edu-label">{{ label }}</div>
+                    <div class="edu-value">{{ value }}</div>
+                </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    <p class="announcement-meta" style="margin-top:6px;">{{ t('student_affairs_edit_note') }}</p>
+</div>
+{% endblock %}

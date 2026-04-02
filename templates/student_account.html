@@ -1,0 +1,61 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ t('my_account') }}{% endblock %}
+
+{% block content %}
+
+<style>
+    .account-layout form {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        max-width: 420px;
+    }
+
+    .account-layout form button,
+    .account-layout .back-link button {
+        width: 100%;
+    }
+
+    .account-layout .back-link {
+        display: block;
+        max-width: 420px;
+    }
+</style>
+
+<div class="account-layout">
+
+<h1>{{ t('account_settings') }}</h1>
+
+<h2>{{ t('change_password') }}</h2>
+<form method="post" action="{{ url_for('student_account') }}">
+    <input type="hidden" name="action" value="change_password">
+    <label>{{ t('current_password') }}:</label>
+    <input type="password" name="current_password" required>
+
+    <label>{{ t('new_password') }}:</label>
+    <input type="password" name="new_password" required>
+
+    <label>{{ t('confirm_new_password') }}:</label>
+    <input type="password" name="new_password_confirm" required>
+
+    <button type="submit">{{ t('change_password') }}</button>
+</form>
+
+<hr>
+
+<h2>{{ t('account_deletion') }}</h2>
+<p>{{ t('student_delete_account_disabled') }}</p>
+
+<br>
+<a class="back-link" href="{{ url_for('student_dashboard') }}"><button>{{ t('back') }}</button></a>
+
+</div>
+
+{% endblock %}
+
+
+
+
+

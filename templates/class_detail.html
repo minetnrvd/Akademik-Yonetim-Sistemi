@@ -1,0 +1,52 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ t('class_details') }}{% endblock %}
+
+{% block content %}
+
+<h1>{{ class_obj.name }} - {{ t('students') }}</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>{{ t('student_name') }}</th>
+            <th>{{ t('attended_sessions') }}</th>
+            <th>{{ t('absences') }}</th>
+            <th>{{ t('passed_q') }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if students_data %}
+            {% for student in students_data %}
+            <tr>
+                <td>{{ student.name }}</td>
+                <td>{{ student.attended }}</td>
+                <td>{{ student.absence }}</td>
+                <td>
+                    {% if student.passed %}
+                        {{ t('yes') }}
+                    {% else %}
+                        {{ t('no') }}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="4">{{ t('no_students_in_class') }}</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<br>
+
+<a href="{{ url_for('teacher_dashboard') }}">
+    <button>{{ t('back') }}</button>
+</a>
+
+{% endblock %}
+
+
+
+

@@ -1,0 +1,51 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ t('attendance_detail') }}{% endblock %}
+
+{% block content %}
+
+<h1>{{ t('attendance_detail') }}</h1>
+
+<p><strong>{{ t('class') }}:</strong> {{ cls.name }}</p>
+<p><strong>{{ t('date') }}:</strong> {{ session.date.strftime('%d-%m-%Y %H:%M') }}</p>
+<p><strong>{{ t('week') }}:</strong> {{ session.week or '-' }}</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>{{ t('student_number_label') }}</th>
+            <th>{{ t('student_name') }}</th>
+            <th>{{ t('attended') }}</th>
+            <th>{{ t('absence_pct') }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for student in cls.students %}
+        <tr>
+            <td>{{ student.student_number }}</td>
+            <td>{{ student.user.name }}</td>
+            <td>
+                {% if student.id in attendance_ids %}
+                    <span class="chip chip-good">{{ t('yes') }}</span>
+                {% else %}
+                    <span class="chip chip-bad">{{ t('no') }}</span>
+                {% endif %}
+            </td>
+            <td>
+                {{ '%.1f'|format(absence_stats[student.id].absence_pct) }}%
+                ({{ absence_stats[student.id].absent_count }}/{{ absence_stats[student.id].total_sessions }})
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<br>
+<a href="{{ url_for('teacher_class_history', class_id=cls.id) }}"><button>{{ t('back') }}</button></a>
+
+{% endblock %}
+
+
+
+
+

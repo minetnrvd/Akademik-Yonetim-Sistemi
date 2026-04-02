@@ -1,0 +1,375 @@
+﻿{% extends "base.html" %}
+{% block title %}{{ t('login') }}{% endblock %}
+{% block content %}
+
+<style>
+    .login-stage {
+        min-height: 82vh;
+        display: grid;
+        place-items: center;
+        justify-items: center;
+        align-items: center;
+        background: transparent;
+        padding: 18px;
+    }
+
+    .auth-shell {
+        width: min(1040px, 100%);
+        min-height: 620px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        border-radius: 22px;
+        overflow: hidden;
+        border: 1px solid rgba(116, 153, 208, 0.34);
+        box-shadow: 0 30px 58px rgba(0, 0, 0, 0.36);
+        background: transparent;
+    }
+
+    .auth-card {
+        background: linear-gradient(180deg, #f7f6f3 0%, #efe9de 100%);
+        color: #2b2f38;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        padding: 30px 24px 20px;
+    }
+
+    .showcase {
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: flex-start;
+        padding: 22px 30px;
+        background: #0a234c;
+    }
+
+    .showcase::before,
+    .showcase::after {
+        content: "";
+        position: absolute;
+        pointer-events: none;
+        inset: 0;
+    }
+
+    .showcase::before {
+        inset: 0;
+        background-image: url("{{ url_for('static', filename='images/Molten Midnight Gradient Wallpaper.jpeg') }}");
+        background-size: cover;
+        background-position: center;
+        transform: scale(1.04);
+        transform-origin: center;
+        filter: saturate(1.05) contrast(1.04);
+        opacity: 1;
+    }
+
+    .showcase::after {
+        background: transparent;
+        opacity: 0;
+    }
+
+    .showcase::before,
+    .showcase::after {
+        z-index: 0;
+    }
+
+    .showcase::after {
+        z-index: 1;
+    }
+
+    .showcase > * {
+        position: relative;
+        z-index: 2;
+    }
+
+    .showcase-title {
+        margin: 0 0 6px;
+        font-size: clamp(34px, 5.2vw, 58px);
+        line-height: 1.05;
+        color: #f2ede2;
+        text-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+    }
+
+    .auth-brand {
+        font-family: 'Sora', 'Segoe UI', sans-serif;
+        font-size: 29px;
+        margin: 0;
+        letter-spacing: 0.3px;
+        color: #2d3443;
+    }
+
+    .auth-form {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .auth-form label {
+        text-align: left;
+        font-size: 13px;
+        letter-spacing: 0.2px;
+        color: #203a66;
+        font-weight: 600;
+    }
+
+    .auth-subtitle {
+        margin-top: 4px;
+        margin-bottom: 10px;
+        color: #555d6d;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+    }
+
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .field input {
+        min-height: 44px;
+        border-radius: 999px;
+        border: 1px solid rgba(72, 95, 132, 0.46);
+        background: rgba(255, 255, 255, 0.85);
+        color: #1b3561;
+        -webkit-text-fill-color: #1b3561;
+        padding: 10px 14px;
+    }
+
+    .field input:-webkit-autofill,
+    .field input:-webkit-autofill:hover,
+    .field input:-webkit-autofill:focus {
+        -webkit-text-fill-color: #1b3561;
+        -webkit-box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.85) inset;
+        transition: background-color 9999s ease-in-out 0s;
+    }
+
+    .field input:focus {
+        outline: none;
+        border-color: rgba(29, 81, 150, 0.82);
+        box-shadow: 0 0 0 3px rgba(84, 137, 202, 0.2);
+    }
+
+    .remember-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: flex-start;
+        margin-top: 2px;
+    }
+
+    .remember-row input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: #1d4f97;
+        border-radius: 8px;
+    }
+
+    .remember-row label {
+        margin: 0;
+        text-align: left;
+        color: #203a66;
+        font-weight: 600;
+    }
+
+    .auth-form button {
+        margin-top: 10px;
+        min-height: 44px;
+        font-size: 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(220, 186, 110, 0.56);
+        background:
+            radial-gradient(130% 180% at 22% 0%, rgba(232, 211, 156, 0.32), transparent 46%),
+            linear-gradient(145deg, rgba(52, 112, 190, 0.9), rgba(24, 70, 136, 0.92));
+        color: #f5efe4;
+        letter-spacing: 0.06em;
+        font-weight: 700;
+        box-shadow: inset 0 1px 0 rgba(255, 248, 224, 0.34), 0 10px 18px rgba(14, 42, 90, 0.28);
+    }
+
+    .auth-form button:hover {
+        filter: brightness(1.04);
+        box-shadow: inset 0 1px 0 rgba(255, 248, 224, 0.42), 0 12px 20px rgba(14, 42, 90, 0.34);
+    }
+
+    .auth-footer-link {
+        margin-top: auto;
+        padding-top: 12px;
+        font-size: 14px;
+        color: #5a6070;
+    }
+
+    .auth-footer-link a {
+        color: #1f4f96;
+        font-weight: 700;
+    }
+
+    @media (max-width: 768px) {
+        .login-stage {
+            min-height: 100vh;
+            padding: 16px 12px;
+            background:
+                radial-gradient(900px 560px at 12% 12%, rgba(68, 120, 191, 0.32), transparent 72%),
+                radial-gradient(700px 420px at 86% 14%, rgba(216, 183, 90, 0.18), transparent 74%),
+                linear-gradient(160deg, #070f24 0%, #0a1c3a 58%, #091935 100%);
+        }
+
+        .container {
+            max-width: none;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            backdrop-filter: none;
+        }
+
+        .auth-shell {
+            width: min(420px, 92vw);
+            min-height: auto;
+            margin: 0 auto;
+            border-radius: 20px;
+            border: 1px solid rgba(108, 146, 207, 0.32);
+            background: linear-gradient(180deg, rgba(8, 16, 42, 0.94), rgba(10, 20, 52, 0.92));
+            box-shadow: 0 24px 40px rgba(0, 0, 0, 0.42);
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+            padding: 0;
+        }
+
+        .showcase {
+            display: none;
+        }
+
+        .showcase-title {
+            text-align: center;
+            font-size: clamp(28px, 10vw, 42px);
+            margin-bottom: 8px;
+        }
+
+        .auth-card {
+            min-height: auto;
+            border-radius: 20px;
+            padding: 22px 18px 18px;
+            justify-content: flex-start;
+            background: linear-gradient(180deg, rgba(9, 18, 46, 0.98), rgba(9, 18, 46, 0.94));
+            color: #d7e3ff;
+        }
+
+        .auth-brand {
+            font-size: 35px;
+            color: #5f83cb;
+        }
+
+        .auth-subtitle {
+            font-size: 14px;
+            color: #9db2de;
+            min-height: auto;
+        }
+
+        .auth-form label {
+            font-size: 14px;
+            color: #9fb2dc;
+        }
+
+        .field input {
+            min-height: 46px;
+            font-size: 15px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(109, 136, 191, 0.36);
+            background: rgba(16, 27, 60, 0.84);
+            color: #d5e2ff;
+            -webkit-text-fill-color: #d5e2ff;
+        }
+
+        .field input:-webkit-autofill,
+        .field input:-webkit-autofill:hover,
+        .field input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #d5e2ff;
+            -webkit-box-shadow: 0 0 0 1000px rgba(16, 27, 60, 0.84) inset;
+        }
+
+        .auth-form button {
+            min-height: 46px;
+            font-size: 18px;
+            border-color: rgba(216, 183, 90, 0.62);
+            background:
+                radial-gradient(130% 180% at 22% 0%, rgba(232, 211, 156, 0.34), transparent 46%),
+                linear-gradient(145deg, #3b79ca, #1d4f97);
+            color: #eff4ff;
+            box-shadow: inset 0 1px 0 rgba(255, 248, 224, 0.38), 0 10px 18px rgba(14, 42, 90, 0.3);
+        }
+
+        .remember-row input[type="checkbox"] {
+            width: 22px;
+            height: 22px;
+        }
+
+        .remember-row label {
+            font-size: 14px;
+            color: #9fb2dc;
+        }
+
+        .auth-footer-link {
+            font-size: 16px;
+            color: #9fb2dc;
+            margin-top: 14px;
+        }
+
+        .auth-footer-link a {
+            color: #d8b75a;
+        }
+    }
+</style>
+
+<section class="login-stage">
+<div class="auth-shell">
+<div class="auth-card">
+
+<h1 class="auth-brand">University of Kyrenia</h1>
+<p class="auth-subtitle">{{ t('login') }}</p>
+
+<form method="post" class="auth-form">
+    {% if next_url %}
+    <input type="hidden" name="next" value="{{ next_url }}">
+    {% endif %}
+
+    <div class="field">
+        <label>{{ t('email') }}</label>
+        <input type="email" name="email" required>
+    </div>
+
+    <div class="field">
+        <label>{{ t('password') }}</label>
+        <input type="password" name="password" required>
+    </div>
+
+    <div class="remember-row">
+        <input id="remember_me" type="checkbox" name="remember_me">
+        <label for="remember_me">{{ t('remember_me') }}</label>
+    </div>
+
+    <button type="submit">{{ t('login') }}</button>
+</form>
+
+<p class="auth-footer-link">{{ t('dont_have_account') }} <a href="{{ url_for('register') }}">{{ t('register') }}</a></p>
+
+</div>
+<div class="showcase" aria-hidden="true">
+    <h2 class="showcase-title">{{ t('welcome_short') }}</h2>
+</div>
+</div>
+</section>
+
+{% endblock %}
+
+
+
+

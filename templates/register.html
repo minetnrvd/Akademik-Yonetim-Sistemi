@@ -1,0 +1,543 @@
+﻿{% extends "base.html" %}
+{% block title %}{{ t('register') }}{% endblock %}
+{% block content %}
+
+<style>
+    .register-stage {
+        min-height: 82vh;
+        display: grid;
+        place-items: center;
+        justify-items: center;
+        align-items: center;
+        background: transparent;
+        padding: 18px;
+    }
+
+    .auth-shell {
+        width: min(1040px, 100%);
+        min-height: 620px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        border-radius: 22px;
+        overflow: hidden;
+        border: 1px solid rgba(116, 153, 208, 0.34);
+        box-shadow: 0 30px 58px rgba(0, 0, 0, 0.36);
+        background: transparent;
+    }
+
+    .auth-card {
+        background: linear-gradient(180deg, #f7f6f3 0%, #efe9de 100%);
+        color: #2b2f38;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        padding: 30px 24px 20px;
+    }
+
+    .showcase {
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: flex-start;
+        padding: 22px 30px;
+        background: #0a234c;
+    }
+
+    .showcase::before,
+    .showcase::after {
+        content: "";
+        position: absolute;
+        pointer-events: none;
+        inset: 0;
+    }
+
+    .showcase::before {
+        inset: 0;
+        background-image: url("{{ url_for('static', filename='images/Molten Midnight Gradient Wallpaper.jpeg') }}");
+        background-size: cover;
+        background-position: center;
+        transform: scale(1.04);
+        transform-origin: center;
+        filter: saturate(1.05) contrast(1.04);
+        opacity: 1;
+    }
+
+    .showcase::after {
+        background: transparent;
+        opacity: 0;
+    }
+
+    .showcase::after,
+    .showcase::before {
+        z-index: 0;
+    }
+
+    .showcase::after {
+        z-index: 1;
+    }
+
+    .showcase > * {
+        position: relative;
+        z-index: 2;
+    }
+
+    .showcase-title {
+        margin: 0 0 6px;
+        font-size: clamp(34px, 5.2vw, 58px);
+        line-height: 1.05;
+        color: #f2ede2;
+        text-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+    }
+
+    .showcase-title {
+        filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.32));
+    }
+
+
+    .auth-brand {
+        font-family: 'Sora', 'Segoe UI', sans-serif;
+        font-size: 29px;
+        margin: 0;
+        letter-spacing: 0.3px;
+        color: #2d3443;
+    }
+
+    .auth-form {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .auth-form label {
+        text-align: left;
+        font-size: 13px;
+        letter-spacing: 0.2px;
+        color: #203a66;
+        font-weight: 600;
+    }
+
+    .form-fields {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        transform: translateX(0);
+    }
+
+    .form-fields.slide-from-left {
+        animation: fieldsSlideFromLeft 1.04s cubic-bezier(.2,.7,.2,1);
+    }
+
+    .form-fields.slide-from-right {
+        animation: fieldsSlideFromRight 1.04s cubic-bezier(.2,.7,.2,1);
+    }
+
+    .auth-subtitle {
+        margin-top: 4px;
+        margin-bottom: 10px;
+        min-height: 24px;
+        color: #555d6d;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+    }
+
+    .role-toggle {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        margin: 2px 0 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(50, 73, 108, 0.28);
+        background: rgba(24, 47, 83, 0.08);
+        padding: 4px;
+    }
+
+    .role-glider {
+        position: absolute;
+        top: 4px;
+        bottom: 4px;
+        left: 4px;
+        width: calc(50% - 4px);
+        border-radius: 999px;
+        background:
+            radial-gradient(130% 180% at 22% 0%, rgba(232, 211, 156, 0.34), transparent 46%),
+            linear-gradient(145deg, rgba(52, 112, 190, 0.9), rgba(24, 70, 136, 0.92));
+        border: 1px solid rgba(220, 186, 110, 0.56);
+        transition: transform 0.42s cubic-bezier(.2,.8,.2,1);
+        pointer-events: none;
+        box-shadow: inset 0 1px 0 rgba(255, 248, 224, 0.34), 0 8px 16px rgba(14, 42, 90, 0.24);
+    }
+
+    .role-toggle.teacher .role-glider {
+        transform: translateX(calc(100% + 4px));
+    }
+
+    .role-toggle input[type="radio"] {
+        display: none;
+    }
+
+    .role-option {
+        border-radius: 999px;
+        border: 1px solid transparent;
+        background: transparent;
+        padding: 10px 12px;
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-weight: 600;
+        cursor: pointer;
+        position: relative;
+        z-index: 1;
+        transition: border-color 0.25s ease;
+    }
+
+    .role-text {
+        display: inline-block;
+        color: #5d6880;
+        transform: translateX(-6px);
+        transition: transform 0.44s ease, color 0.44s ease, letter-spacing 0.44s ease, opacity 0.44s ease;
+        opacity: 0.8;
+    }
+
+    .role-toggle input[type="radio"]:checked + .role-option {
+        border-color: rgba(220, 186, 110, 0.36);
+    }
+
+    .role-toggle input[type="radio"]:checked + .role-option .role-text {
+        color: #f8f4ec;
+        transform: translateX(6px);
+        letter-spacing: 0.2px;
+        opacity: 1;
+    }
+
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .field input {
+        min-height: 44px;
+        border-radius: 999px;
+        border: 1px solid rgba(72, 95, 132, 0.46);
+        background: rgba(255, 255, 255, 0.85);
+        color: #1b3561;
+        -webkit-text-fill-color: #1b3561;
+        padding: 10px 14px;
+    }
+
+    .field input:-webkit-autofill,
+    .field input:-webkit-autofill:hover,
+    .field input:-webkit-autofill:focus {
+        -webkit-text-fill-color: #1b3561;
+        -webkit-box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.85) inset;
+        transition: background-color 9999s ease-in-out 0s;
+    }
+
+    .field input:focus {
+        outline: none;
+        border-color: rgba(29, 81, 150, 0.82);
+        box-shadow: 0 0 0 3px rgba(84, 137, 202, 0.2);
+    }
+
+    .auth-form button {
+        margin-top: 10px;
+        min-height: 44px;
+        font-size: 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(220, 186, 110, 0.56);
+        background:
+            radial-gradient(130% 180% at 22% 0%, rgba(232, 211, 156, 0.32), transparent 46%),
+            linear-gradient(145deg, rgba(52, 112, 190, 0.9), rgba(24, 70, 136, 0.92));
+        color: #f5efe4;
+        letter-spacing: 0.06em;
+        font-weight: 700;
+        box-shadow: inset 0 1px 0 rgba(255, 248, 224, 0.34), 0 10px 18px rgba(14, 42, 90, 0.28);
+    }
+
+    .auth-form button:hover {
+        filter: brightness(1.04);
+        box-shadow: inset 0 1px 0 rgba(255, 248, 224, 0.42), 0 12px 20px rgba(14, 42, 90, 0.34);
+    }
+
+    #student_number_div {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        min-height: 78px;
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 0.24s ease;
+    }
+
+    #student_number_div.hidden {
+        opacity: 0;
+        visibility: hidden;
+    }
+
+    @keyframes fieldsSlideFromLeft {
+        from {
+            transform: translateX(-20px);
+            opacity: 0.74;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    @keyframes fieldsSlideFromRight {
+        from {
+            transform: translateX(20px);
+            opacity: 0.74;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .auth-footer-link {
+        margin-top: auto;
+        padding-top: 12px;
+        font-size: 14px;
+        color: #5a6070;
+    }
+
+    .auth-footer-link a {
+        color: #1f4f96;
+        font-weight: 700;
+    }
+
+    @media (max-width: 768px) {
+        .register-stage {
+            min-height: 100vh;
+            padding: 16px 12px;
+            background:
+                radial-gradient(900px 560px at 12% 12%, rgba(68, 120, 191, 0.32), transparent 72%),
+                radial-gradient(700px 420px at 86% 14%, rgba(216, 183, 90, 0.18), transparent 74%),
+                linear-gradient(160deg, #070f24 0%, #0a1c3a 58%, #091935 100%);
+        }
+
+        .container {
+            max-width: none;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            backdrop-filter: none;
+        }
+
+        .auth-shell {
+            width: min(420px, 92vw);
+            min-height: auto;
+            margin: 0 auto;
+            border-radius: 20px;
+            border: 1px solid rgba(108, 146, 207, 0.32);
+            background: linear-gradient(180deg, rgba(8, 16, 42, 0.94), rgba(10, 20, 52, 0.92));
+            box-shadow: 0 24px 40px rgba(0, 0, 0, 0.42);
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+            padding: 0;
+        }
+
+        .showcase {
+            display: none;
+        }
+
+        .showcase-title {
+            text-align: center;
+            font-size: clamp(28px, 10vw, 42px);
+            margin-bottom: 8px;
+        }
+
+        .auth-card {
+            min-height: auto;
+            border-radius: 20px;
+            padding: 22px 18px 18px;
+            justify-content: flex-start;
+            background: linear-gradient(180deg, rgba(9, 18, 46, 0.98), rgba(9, 18, 46, 0.94));
+            color: #d7e3ff;
+        }
+
+        .auth-brand {
+            font-size: 35px;
+            color: #5f83cb;
+        }
+
+        .auth-subtitle {
+            font-size: 14px;
+            color: #9db2de;
+            min-height: auto;
+        }
+
+        .role-option {
+            min-height: 44px;
+        }
+
+        .role-text {
+            font-size: 14px;
+        }
+
+        .auth-form label {
+            font-size: 14px;
+            color: #9fb2dc;
+        }
+
+        .field input {
+            min-height: 46px;
+            font-size: 15px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(109, 136, 191, 0.36);
+            background: rgba(16, 27, 60, 0.84);
+            color: #d5e2ff;
+            -webkit-text-fill-color: #d5e2ff;
+        }
+
+        .field input:-webkit-autofill,
+        .field input:-webkit-autofill:hover,
+        .field input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #d5e2ff;
+            -webkit-box-shadow: 0 0 0 1000px rgba(16, 27, 60, 0.84) inset;
+        }
+
+        .role-toggle {
+            border: 1px solid rgba(98, 126, 188, 0.36);
+            background: rgba(15, 26, 58, 0.72);
+        }
+
+        .role-glider {
+            border: 1px solid rgba(216, 183, 90, 0.62);
+            background:
+                radial-gradient(130% 180% at 22% 0%, rgba(232, 211, 156, 0.36), transparent 46%),
+                linear-gradient(145deg, #3b79ca, #1d4f97);
+            box-shadow: inset 0 1px 0 rgba(255, 248, 224, 0.38), 0 8px 16px rgba(14, 42, 90, 0.3);
+        }
+
+        .role-text {
+            color: #8fa7d9;
+        }
+
+        .role-toggle input[type="radio"]:checked + .role-option .role-text {
+            color: #eef3ff;
+        }
+
+        .auth-form button {
+            min-height: 46px;
+            font-size: 18px;
+            border-color: rgba(216, 183, 90, 0.62);
+            background:
+                radial-gradient(130% 180% at 22% 0%, rgba(232, 211, 156, 0.34), transparent 46%),
+                linear-gradient(145deg, #3b79ca, #1d4f97);
+            color: #eff4ff;
+            box-shadow: inset 0 1px 0 rgba(255, 248, 224, 0.38), 0 10px 18px rgba(14, 42, 90, 0.3);
+        }
+
+        .auth-footer-link {
+            font-size: 16px;
+            color: #9fb2dc;
+            margin-top: 14px;
+        }
+
+        .auth-footer-link a {
+            color: #d8b75a;
+        }
+    }
+</style>
+
+<section class="register-stage">
+<div class="auth-shell">
+<div class="auth-card">
+
+<h1 class="auth-brand">University of Kyrenia</h1>
+<p class="auth-subtitle">{{ t('register') }}</p>
+
+<form method="post" class="auth-form">
+    <div class="role-toggle" id="role_toggle" aria-label="Role selection">
+        <span class="role-glider" aria-hidden="true"></span>
+
+        <input type="radio" id="role_student" name="role" value="student" checked onchange="toggleStudentNumber()">
+        <label class="role-option" for="role_student"><span class="role-text">{{ t('student') }}</span></label>
+
+        <input type="radio" id="role_teacher" name="role" value="teacher" onchange="toggleStudentNumber()">
+        <label class="role-option" for="role_teacher"><span class="role-text">{{ t('teacher') }}</span></label>
+    </div>
+
+    <div class="form-fields" id="form_fields">
+        <div class="field">
+            <label>{{ t('name') }}</label>
+            <input type="text" name="name" required>
+        </div>
+
+        <div class="field">
+            <label>{{ t('email') }}</label>
+            <input type="email" name="email" required>
+        </div>
+
+        <div class="field">
+            <label>{{ t('password') }}</label>
+            <input type="password" name="password" required>
+        </div>
+
+        <div id="student_number_div" class="field">
+            <label>{{ t('student_number') }}</label>
+            <input type="text" name="student_number" id="student_number_input">
+        </div>
+    </div>
+
+    <button type="submit">{{ t('register') }}</button>
+</form>
+
+<p class="auth-footer-link">{{ t('already_registered') }} <a href="{{ url_for('login') }}">{{ t('login') }}</a></p>
+
+</div>
+<div class="showcase" aria-hidden="true">
+    <h2 class="showcase-title">{{ t('welcome_short') }}</h2>
+</div>
+</div>
+</section>
+
+<script>
+    function toggleStudentNumber() {
+        const role = document.querySelector('input[name="role"]:checked').value;
+        const div = document.getElementById('student_number_div');
+        const input = document.getElementById('student_number_input');
+        const fields = document.getElementById('form_fields');
+        const roleToggle = document.getElementById('role_toggle');
+
+        fields.classList.remove('slide-from-left', 'slide-from-right');
+        void fields.offsetWidth;
+        fields.classList.add(role === 'teacher' ? 'slide-from-right' : 'slide-from-left');
+
+        roleToggle.classList.toggle('teacher', role === 'teacher');
+
+        if (role === 'teacher') {
+            div.classList.add('hidden');
+            input.required = false;
+            input.value = '';
+        } else {
+            div.classList.remove('hidden');
+            input.required = true;
+        }
+    }
+
+    window.onload = toggleStudentNumber;
+</script>
+
+
+{% endblock %}
+
+
+
+

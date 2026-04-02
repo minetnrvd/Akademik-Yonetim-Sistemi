@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lang_text('Yoklama Yonetimi', 'Attendance Management') }}{% endblock %}
+
+{% block content %}
+<style>
+    .hub-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .hub-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .hub-top h1 { margin: 0; }
+
+    .control-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .section-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+    }
+
+    .section-title {
+        margin: 0 0 10px;
+        font-size: 18px;
+        color: var(--moonbeam);
+    }
+
+    .form-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .form-stack button,
+    .form-stack input,
+    .form-stack select {
+        width: 100%;
+    }
+
+    .class-select {
+        color-scheme: dark;
+        background: rgba(255, 255, 255, 0.07);
+        color: #f2f2f2;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .classes-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+    }
+
+    .class-tab {
+        background: rgba(255, 255, 255, 0.07);
+        color: var(--text);
+        cursor: pointer;
+        padding: 12px 14px;
+        width: 100%;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        text-align: left;
+        outline: none;
+        font-size: 15px;
+        transition: background-color 0.2s ease, border-color 0.2s ease;
+        border-radius: 16px;
+        margin-top: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .class-tab.active,
+    .class-tab:hover {
+        background: rgba(29, 79, 151, 0.24);
+        border-color: rgba(216, 183, 90, 0.46);
+    }
+
+    .class-tab-main {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .tab-meta { color: var(--text-soft); font-size: 13px; }
+
+    .tab-arrow {
+        transition: transform 0.24s ease;
+        color: var(--moonbeam);
+        font-size: 12px;
+    }
+
+    .class-tab.active .tab-arrow { transform: rotate(180deg); }
+
+    .chip {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 11px;
+        color: var(--text-soft);
+    }
+
+    .chip-good {
+        border-color: rgba(42, 157, 92, 0.52);
+        color: #cfeedd;
+    }
+
+    .panel {
+        padding: 0 14px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 16px;
+        margin-top: 5px;
+        max-height: 0;
+        opacity: 0;
+        transform: translateY(-4px);
+        transition: max-height 0.35s ease, opacity 0.28s ease, transform 0.28s ease, padding 0.25s ease;
+    }
+
+    .panel.open {
+        max-height: 1200px;
+        opacity: 1;
+        transform: translateY(0);
+        padding: 12px 14px;
+    }
+
+    .qr-thumb {
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.03);
+        padding: 8px;
+        width: 136px;
+        height: 136px;
+    }
+
+    .panel-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+    }
+
+    .panel-actions form { margin: 0; }
+
+    .empty-note {
+        color: var(--text-soft);
+        margin: 0;
+    }
+
+    @media (max-width: 900px) {
+        .control-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<div class="hub-shell">
+    <div class="hub-top">
+        <h1>{{ lang_text('Yoklama Yonetimi', 'Attendance Management') }}</h1>
+        <div>
+            <a href="{{ url_for('teacher_dashboard') }}"><button type="button">{{ lang_text('Dashboarda Don', 'Back to Dashboard') }}</button></a>
+        </div>
+    </div>
+
+    <section class="control-grid">
+        <div class="section-card">
+            <h2 class="section-title">{{ t('create_class') }}</h2>
+            <form class="form-stack" method="post" action="{{ url_for('create_class') }}">
+                <label>{{ t('class_name') }}</label>
+                <input type="text" name="class_name" required>
+                <button type="submit">{{ t('create') }}</button>
+            </form>
+        </div>
+
+        <div class="section-card">
+            <h2 class="section-title">{{ t('start_attendance') }}</h2>
+            {% if teacher_classes %}
+            <form class="form-stack" method="POST" action="{{ url_for('create_session') }}">
+                <label>{{ t('class') }}</label>
+                <select name="class_id" class="class-select" required>
+                    {% for cls in teacher_classes %}
+                        <option value="{{ cls.id }}">{{ cls.name }}</option>
+                    {% endfor %}
+                </select>
+
+                <label>{{ t('week') }}</label>
+                <input type="text" name="week" placeholder="{{ t('week_placeholder') }}">
+
+                <button type="button" onclick="startAndOpenQr(this.form)">{{ t('start_and_open_qr') }}</button>
+            </form>
+            {% else %}
+            <p class="empty-note">{{ t('create_class_first') }}</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="classes-card">
+        <h2 class="section-title">{{ t('current_classes_and_qr') }}</h2>
+
+        {% if teacher_classes %}
+            {% for cls in teacher_classes %}
+                <button class="class-tab">
+                    <span class="class-tab-main">
+                        <strong>{{ cls.name }}</strong>
+                        <span class="tab-meta">{{ t('students_count', count=cls.students|length) }}</span>
+                        {% if cls.active_session %}
+                            <span class="chip chip-good">{{ t('session_active') }}</span>
+                        {% else %}
+                            <span class="chip">{{ t('no_active_session') }}</span>
+                        {% endif %}
+                    </span>
+                    <span class="tab-arrow">▼</span>
+                </button>
+
+                <div class="panel">
+                    <p><strong>{{ t('class_qr_code') }}:</strong></p>
+                    {% if cls.qr_filename %}
+                        <img class="qr-thumb" src="{{ url_for('static', filename='qrcodes/' + cls.qr_filename) }}" width="120" height="120" alt="{{ lang_text('Ders QR', 'Class QR') }}"><br>
+                        <div class="panel-actions">
+                            <a href="{{ url_for('static', filename='qrcodes/' + cls.qr_filename) }}" download><button type="button">{{ t('download') }} QR</button></a>
+                            <a href="{{ url_for('view_qr', token=cls.qr_token) }}" target="_blank"><button type="button">{{ t('fullscreen') }}</button></a>
+                        </div>
+                    {% else %}
+                        <p class="empty-note">{{ t('qr_not_generated') }}</p>
+                    {% endif %}
+
+                    <hr>
+
+                    {% if cls.active_session %}
+                        <p><strong>{{ t('active_attendance_session') }}:</strong> {{ cls.active_session.date.strftime('%d-%m-%Y %H:%M') }}</p>
+                        <p>
+                            <strong>{{ t('live_attendance') }}:</strong>
+                            <span id="live-count-{{ cls.active_session.id }}">{{ cls.live_present_count }}/{{ cls.live_total_count }}</span>
+                            | <strong>{{ t('ends_at') }}:</strong> {{ cls.deadline.strftime('%H:%M:%S') if cls.deadline else '-' }}
+                        </p>
+
+                        <form method="POST" action="{{ url_for('update_attendance', session_id=cls.active_session.id) }}">
+                            <input type="hidden" name="stop" id="stop-{{ cls.active_session.id }}" value="0">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>{{ t('student') }}</th>
+                                        <th>{{ t('present') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for student in cls.students %}
+                                    <tr>
+                                        <td>{{ student.user.name }} ({{ student.student_number }})</td>
+                                        <td>
+                                            <input type="checkbox" name="present" value="{{ student.id }}"
+                                                {% if student.id in cls.attendance_by_student and cls.attendance_by_student[student.id].present %}checked{% endif %}>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+
+                            <div class="panel-actions">
+                                <button type="submit" onclick="document.getElementById('stop-{{ cls.active_session.id }}').value='1'" style="background:rgba(29,79,151,0.34); border-color:rgba(216,183,90,0.5); color:#ecf3ff;">{{ t('finish_attendance') }}</button>
+                            </div>
+                        </form>
+
+                    {% else %}
+                        <p class="empty-note">{{ t('no_active_session_note') }}</p>
+                    {% endif %}
+
+                    <hr>
+                    <a href="{{ url_for('teacher_class_history', class_id=cls.id) }}"><button type="button">{{ t('attendance_history') }}</button></a>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p class="empty-note">{{ t('you_have_not_created_class') }}</p>
+        {% endif %}
+    </section>
+</div>
+
+<script>
+    function startAndOpenQr(form) {
+        const win = window.open('about:blank', '_blank');
+        if (!win) {
+            alert("{{ t('popup_blocked') }}");
+            return;
+        }
+
+        const targetName = 'qr_tab_' + Date.now();
+        win.name = targetName;
+
+        const originalTarget = form.target;
+        form.target = targetName;
+
+        const hiddenAction = document.createElement('input');
+        hiddenAction.type = 'hidden';
+        hiddenAction.name = 'action';
+        hiddenAction.value = 'start_and_show_qr';
+        form.appendChild(hiddenAction);
+
+        form.submit();
+
+        form.removeChild(hiddenAction);
+        form.target = originalTarget;
+    }
+
+    document.querySelectorAll('.class-tab').forEach(button => {
+        button.addEventListener('click', () => {
+            button.classList.toggle('active');
+            const panel = button.nextElementSibling;
+            panel.classList.toggle('open');
+        });
+    });
+
+    function refreshLiveCounts() {
+        document.querySelectorAll('[id^="live-count-"]').forEach(el => {
+            const sessionId = el.id.replace('live-count-', '');
+            fetch(`/teacher/session/${sessionId}/stats`)
+                .then(r => r.json())
+                .then(data => {
+                    if (typeof data.present_count !== 'undefined') {
+                        el.textContent = `${data.present_count}/${data.total_count}`;
+                    }
+                })
+                .catch(() => {});
+        });
+    }
+
+    setInterval(refreshLiveCounts, 5000);
+</script>
+
+{% endblock %}

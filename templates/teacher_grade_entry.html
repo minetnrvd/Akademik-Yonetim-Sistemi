@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}{{ lang_text('Not Ekleme', 'Grade Entry') }}{% endblock %}
+{% block content %}
+<style>
+    .grade-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .grade-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .grade-top h1 { margin: 0; }
+
+    .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .card {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+        background: rgba(255,255,255,0.04);
+    }
+
+    .card h2 {
+        margin: 0 0 10px;
+        color: var(--moonbeam);
+        font-size: 18px;
+    }
+
+    .meta {
+        color: var(--text-soft);
+        font-size: 13px;
+        margin: 0 0 10px;
+    }
+
+    .form-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .form-stack input,
+    .form-stack select,
+    .form-stack button {
+        width: 100%;
+    }
+
+    .table-wrap {
+        overflow-x: auto;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    th,
+    td {
+        border-bottom: 1px solid var(--line);
+        padding: 8px;
+        text-align: left;
+    }
+
+    th { color: var(--text-soft); font-weight: 700; }
+
+    .pill {
+        border: 1px solid rgba(216,183,90,0.45);
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 11px;
+        color: #f6ebc8;
+    }
+
+    @media (max-width: 960px) {
+        .grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<div class="grade-shell">
+    <div class="grade-top">
+        <h1>{{ lang_text('Not Ekleme Sistemi', 'Grade Entry System') }}</h1>
+        <div>
+            <a href="{{ url_for('teacher_dashboard') }}"><button type="button">{{ lang_text('Dashboarda Don', 'Back to Dashboard') }}</button></a>
+        </div>
+    </div>
+
+    <div class="grid">
+        <section class="card">
+            <h2>{{ lang_text('Yeni Not Gir', 'Enter New Grade') }}</h2>
+            <p class="meta">{{ lang_text('Ogretmen', 'Teacher') }}: {{ user_name }}</p>
+
+            {% if teacher_classes %}
+            <form class="form-stack" method="post" action="{{ url_for('teacher_grade_entry') }}">
+                <label>{{ lang_text('Ders', 'Class') }}</label>
+                <select name="class_id" id="class-select" required>
+                    {% for cls in teacher_classes %}
+                        <option value="{{ cls.id }}" {% if selected_class and cls.id == selected_class.id %}selected{% endif %}>{{ cls.name }}</option>
+                    {% endfor %}
+                </select>
+
+                <label>{{ lang_text('Ogrenci', 'Student') }}</label>
+                <select name="student_id" required>
+                    {% for stu in students_for_class %}
+                        <option value="{{ stu.id }}">{{ stu.user.name }} ({{ stu.student_number }})</option>
+                    {% endfor %}
+                </select>
+
+                <label>{{ lang_text('Degerlendirme', 'Assessment') }}</label>
+                <input type="text" name="assessment_name" placeholder="{{ lang_text('Orn: Vize 1', 'Example: Midterm 1') }}" required>
+
+                <label>{{ lang_text('Sinav Kac Uzerinden?', 'Exam Total Points') }}</label>
+                <input type="number" name="max_points" id="max-points" min="1" step="0.01" placeholder="{{ lang_text('Orn: 100', 'Example: 100') }}" required>
+
+                <label>{{ lang_text('Sinav Notu', 'Exam Score') }}</label>
+                <input type="number" name="score" id="score-points" min="0" step="0.01" placeholder="{{ lang_text('Orn: 78', 'Example: 78') }}" required>
+
+                <label>{{ lang_text('Otomatik Harf Notu', 'Automatic Letter Grade') }}</label>
+                <input type="text" id="auto-letter" value="-" readonly>
+
+                <button type="submit">{{ lang_text('Notu Kaydet', 'Save Grade') }}</button>
+            </form>
+            {% else %}
+                <p class="meta">{{ lang_text('Not girisi icin once dersiniz olmalidir.', 'You must have at least one class before entering grades.') }}</p>
+            {% endif %}
+        </section>
+
+        <section class="card">
+            <h2>{{ lang_text('Son Girilen Notlar', 'Recent Grades') }}</h2>
+            {% if selected_class %}
+                <p class="meta">
+                    {{ lang_text('Secili ders', 'Selected class') }}: <span class="pill">{{ selected_class.name }}</span>
+                </p>
+            {% endif %}
+
+            {% if recent_grades %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>{{ lang_text('Ogrenci', 'Student') }}</th>
+                            <th>{{ lang_text('Degerlendirme', 'Assessment') }}</th>
+                            <th>{{ lang_text('Not', 'Grade') }}</th>
+                            <th>{{ lang_text('Puan', 'Points') }}</th>
+                            <th>{{ lang_text('Tarih', 'Date') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for g in recent_grades %}
+                        <tr>
+                            <td>{{ g.enrollment.student.user.name if g.enrollment and g.enrollment.student and g.enrollment.student.user else '-' }}</td>
+                            <td>{{ g.assessment_name }}</td>
+                            <td>{{ g.letter_grade }}</td>
+                            <td>{{ '%.2f'|format(g.grade_point) }}</td>
+                            <td>{{ g.created_at.strftime('%d-%m-%Y %H:%M') if g.created_at else '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+                <p class="meta">{{ lang_text('Henuz not kaydi yok.', 'No grades recorded yet.') }}</p>
+            {% endif %}
+        </section>
+    </div>
+</div>
+
+<script>
+    function letterFromRatio(ratio) {
+        if (ratio >= 90) return 'AA';
+        if (ratio >= 85) return 'BA';
+        if (ratio >= 80) return 'BB';
+        if (ratio >= 75) return 'CB';
+        if (ratio >= 70) return 'CC';
+        if (ratio >= 65) return 'DC';
+        if (ratio >= 60) return 'DD';
+        if (ratio >= 50) return 'FD';
+        return 'FF';
+    }
+
+    function refreshAutoLetter() {
+        const maxInput = document.getElementById('max-points');
+        const scoreInput = document.getElementById('score-points');
+        const outInput = document.getElementById('auto-letter');
+        if (!maxInput || !scoreInput || !outInput) return;
+
+        const maxVal = Number(maxInput.value);
+        const scoreVal = Number(scoreInput.value);
+        if (!Number.isFinite(maxVal) || !Number.isFinite(scoreVal) || maxVal <= 0 || scoreVal < 0 || scoreVal > maxVal) {
+            outInput.value = '-';
+            return;
+        }
+        const ratio = (scoreVal / maxVal) * 100;
+        outInput.value = `${letterFromRatio(ratio)} (${ratio.toFixed(1)}%)`;
+    }
+
+    document.getElementById('class-select')?.addEventListener('change', function () {
+        const classId = this.value;
+        const url = new URL(window.location.href);
+        url.searchParams.set('class_id', classId);
+        window.location.href = url.toString();
+    });
+
+    document.getElementById('max-points')?.addEventListener('input', refreshAutoLetter);
+    document.getElementById('score-points')?.addEventListener('input', refreshAutoLetter);
+</script>
+
+{% endblock %}

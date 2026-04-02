@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('absence_title') }}{% endblock %}
+
+{% block content %}
+<style>
+    .absence-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .absence-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .summary-box,
+    .section-card,
+    .side-card,
+    .alerts-card,
+    .search-wrap {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 12px;
+    }
+
+    .summary-label {
+        font-size: 12px;
+        color: var(--text-soft);
+    }
+
+    .summary-value {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--moonbeam);
+    }
+
+    .section-title {
+        margin: 0 0 10px;
+        color: var(--moonbeam);
+    }
+
+    .search-form {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .search-form input {
+        flex: 1;
+        min-width: 180px;
+    }
+
+    .absence-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.8fr) minmax(260px, 1fr);
+        gap: 12px;
+    }
+
+    .class-tab {
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 14px;
+        padding: 10px 12px;
+        width: 100%;
+        color: var(--text);
+        text-align: left;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 8px;
+        cursor: pointer;
+    }
+
+    .panel {
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        margin-top: 6px;
+        padding: 0 12px;
+        transition: max-height 0.3s ease, opacity 0.25s ease, padding 0.25s ease;
+    }
+
+    .panel.open {
+        max-height: 520px;
+        opacity: 1;
+        padding: 12px;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .stat {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px;
+    }
+
+    .stat-label {
+        display: block;
+        color: var(--text-soft);
+        font-size: 12px;
+    }
+
+    .stat-value {
+        font-weight: 700;
+    }
+
+    .panel-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .alert-list,
+    .available-list {
+        margin: 0;
+        padding-left: 18px;
+    }
+
+    .available-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px;
+        margin-bottom: 8px;
+        background: rgba(255, 255, 255, 0.03);
+        list-style: none;
+    }
+
+    .available-item form {
+        margin: 0;
+    }
+
+    @media (max-width: 900px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .absence-layout {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 700px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .search-form {
+            flex-direction: column;
+            align-items: stretch;
+        }
+    }
+</style>
+
+<div class="absence-shell">
+    <div class="absence-top">
+        <div>
+            <h1>{{ t('absence_title') }}</h1>
+            <p>{{ t('absence_subtitle', name=user_name) }}</p>
+        </div>
+        <a href="{{ url_for('student_dashboard') }}"><button type="button">{{ t('back_to_home') }}</button></a>
+    </div>
+
+    <section class="summary-grid">
+        <article class="summary-box">
+            <div class="summary-label">{{ t('enrolled_courses') }}</div>
+            <div class="summary-value">{{ absence_summary.joined_class_count }}</div>
+        </article>
+        <article class="summary-box">
+            <div class="summary-label">{{ t('active_attendance') }}</div>
+            <div class="summary-value">{{ absence_summary.active_session_count }}</div>
+        </article>
+        <article class="summary-box">
+            <div class="summary-label">{{ t('total_sessions') }}</div>
+            <div class="summary-value">{{ absence_summary.total_confirmed_sessions }}</div>
+        </article>
+        <article class="summary-box">
+            <div class="summary-label">{{ t('average_absence') }}</div>
+            <div class="summary-value">{{ absence_summary.average_absence_pct|round(1) }}%</div>
+        </article>
+    </section>
+
+    <div class="search-wrap">
+        <form class="search-form" method="get" action="{{ url_for('student_absence') }}">
+            <input type="text" name="search" placeholder="{{ t('search_course') }}" value="{{ request.args.get('search', '') }}">
+            <button type="submit">{{ t('search') }}</button>
+        </form>
+        {% if search_message %}
+            <p>{{ search_message }}</p>
+        {% endif %}
+    </div>
+
+    <div class="absence-layout">
+        <section class="section-card">
+            <h2 class="section-title">{{ t('course_based_absence') }}</h2>
+            {% if class_data %}
+                {% for c in class_data %}
+                    <button class="class-tab">
+                        <span>{{ c.class_name }} - {{ t('absence') }} {{ c.percentage|round(1) }}%</span>
+                        <span>▼</span>
+                    </button>
+                    <div class="panel">
+                        <div class="stats-grid">
+                            <div class="stat"><span class="stat-label">{{ t('total') }}</span><span class="stat-value">{{ c.total }}</span></div>
+                            <div class="stat"><span class="stat-label">{{ t('attended') }}</span><span class="stat-value">{{ c.attended }}</span></div>
+                            <div class="stat"><span class="stat-label">{{ t('status') }}</span><span class="stat-value">{{ c.status }}</span></div>
+                            <div class="stat"><span class="stat-label">{{ t('active') }}</span><span class="stat-value">{% if c.active %}{{ t('yes') }}{% else %}{{ t('no') }}{% endif %}</span></div>
+                        </div>
+                        <div class="panel-actions">
+                            {% if c.active %}
+                                {% if c.already_marked %}
+                                    <span class="chip chip-good">{{ t('attendance_already_marked') }}</span>
+                                {% else %}
+                                    <form action="{{ url_for('mark_attendance', token=c.qr_token) }}" method="get">
+                                        <button type="submit">{{ t('mark_attendance') }}</button>
+                                    </form>
+                                {% endif %}
+                            {% else %}
+                                <span class="chip">{{ t('no_active_attendance') }}</span>
+                            {% endif %}
+                            <a href="{{ url_for('student_class_history', class_id=c.class_id) }}"><button type="button">{{ t('absence_history') }}</button></a>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>{{ t('no_enrolled_course_found') }}</p>
+            {% endif %}
+        </section>
+
+        <aside>
+            <section class="alerts-card">
+                <h2 class="section-title">{{ t('active_attendance_alerts') }}</h2>
+                {% if active_announcements %}
+                    <ul class="alert-list">
+                        {% for a in active_announcements %}
+                            <li>
+                                {{ a.class_name }}{% if a.week %} - {{ t('week') }} {{ a.week }}{% endif %}
+                                ({{ t('ends') }}: {{ a.deadline.strftime('%H:%M:%S') }})
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>{{ t('no_active_attendance_alerts') }}</p>
+                {% endif %}
+            </section>
+
+            <section class="side-card" style="margin-top:12px;">
+                <h2 class="section-title">{{ t('join_course') }}</h2>
+                {% if available_classes %}
+                    <ul class="available-list">
+                        {% for cls in available_classes %}
+                            <li class="available-item">
+                                <span>{{ cls.name }}</span>
+                                <form method="post" action="{{ url_for('student_absence') }}">
+                                    <input type="hidden" name="class_id" value="{{ cls.id }}">
+                                    <button type="submit">{{ t('join') }}</button>
+                                </form>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>{{ t('no_additional_course') }}</p>
+                {% endif %}
+            </section>
+        </aside>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.class-tab').forEach(button => {
+        button.addEventListener('click', () => {
+            button.classList.toggle('active');
+            const panel = button.nextElementSibling;
+            panel.classList.toggle('open');
+        });
+    });
+</script>
+{% endblock %}

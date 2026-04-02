@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lang_text('Raporlar', 'Reports') }}{% endblock %}
+
+{% block content %}
+<style>
+    .report-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .report-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .report-meta {
+        color: var(--text-soft);
+        margin: 4px 0 0;
+    }
+
+    .quick-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .stat-card {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    .stat-card .label {
+        color: var(--text-soft);
+        font-size: 12px;
+    }
+
+    .stat-card .value {
+        margin-top: 4px;
+        font-size: 20px;
+        color: var(--moonbeam);
+        font-weight: 700;
+    }
+
+    .table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .table-wrap table {
+        margin: 0;
+        border: none;
+    }
+
+    .table-wrap th {
+        background: rgba(29, 79, 151, 0.22);
+        color: #ecf3ff;
+    }
+
+    .back-row {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    @media (max-width: 900px) {
+        .quick-stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        .quick-stats {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="report-shell">
+    <div class="report-top">
+        <div>
+            <h1>{{ lang_text('Raporlar', 'Reports') }}</h1>
+            <p class="report-meta">{{ user.name }} • {{ lang_text('Ogretmen', 'Teacher') if report_role == 'teacher' else lang_text('Ogrenci', 'Student') }} {{ lang_text('gorunumu', 'view') }}</p>
+        </div>
+        <div class="back-row">
+            {% if report_role == 'teacher' %}
+                <a href="{{ url_for('teacher_dashboard') }}"><button type="button">← {{ lang_text('Ogretmen Paneli', 'Teacher Dashboard') }}</button></a>
+            {% else %}
+                <a href="{{ url_for('student_dashboard') }}"><button type="button">← {{ lang_text('Ogrenci Paneli', 'Student Dashboard') }}</button></a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if report_role == 'teacher' %}
+    <section class="quick-stats">
+        <article class="stat-card"><div class="label">{{ lang_text('Ders Sayisi', 'Class Count') }}</div><div class="value">{{ totals.class_count }}</div></article>
+        <article class="stat-card"><div class="label">{{ lang_text('Toplam Ogrenci', 'Total Students') }}</div><div class="value">{{ totals.student_total }}</div></article>
+        <article class="stat-card"><div class="label">{{ lang_text('Onayli Oturum', 'Confirmed Sessions') }}</div><div class="value">{{ totals.session_total }}</div></article>
+        <article class="stat-card"><div class="label">{{ lang_text('Genel Devam %', 'Overall Attendance %') }}</div><div class="value">{{ '%.2f'|format(totals.attendance_rate) }}%</div></article>
+    </section>
+
+    <section class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>{{ lang_text('Ders', 'Class') }}</th>
+                    <th>{{ lang_text('Ogrenci', 'Students') }}</th>
+                    <th>{{ lang_text('Onayli Oturum', 'Confirmed Sessions') }}</th>
+                    <th>{{ lang_text('Var Isareti', 'Present Marks') }}</th>
+                    <th>{{ lang_text('Beklenen', 'Expected') }}</th>
+                    <th>{{ lang_text('Devam %', 'Attendance %') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>{{ row.class_name }}</td>
+                    <td>{{ row.student_count }}</td>
+                    <td>{{ row.confirmed_session_count }}</td>
+                    <td>{{ row.present_total }}</td>
+                    <td>{{ row.expected_total }}</td>
+                    <td>{{ '%.2f'|format(row.attendance_rate) }}%</td>
+                </tr>
+                {% endfor %}
+                {% if not rows %}
+                <tr><td colspan="6">{{ lang_text('Rapor verisi bulunamadi.', 'No report data found.') }}</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </section>
+    {% else %}
+    <section class="quick-stats">
+        <article class="stat-card"><div class="label">{{ lang_text('Katildigim Dersler', 'My Classes') }}</div><div class="value">{{ totals.class_count }}</div></article>
+        <article class="stat-card"><div class="label">{{ lang_text('Toplam Oturum', 'Total Sessions') }}</div><div class="value">{{ totals.total_sessions }}</div></article>
+        <article class="stat-card"><div class="label">{{ lang_text('Katildim', 'Present') }}</div><div class="value">{{ totals.present_total }}</div></article>
+        <article class="stat-card"><div class="label">{{ lang_text('Devam %', 'Attendance %') }}</div><div class="value">{{ '%.2f'|format(totals.attendance_rate) }}%</div></article>
+    </section>
+
+    <section class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>{{ lang_text('Ders', 'Class') }}</th>
+                    <th>{{ lang_text('Toplam Oturum', 'Total Sessions') }}</th>
+                    <th>{{ lang_text('Var', 'Present') }}</th>
+                    <th>{{ lang_text('Yok', 'Absent') }}</th>
+                    <th>{{ lang_text('Devam %', 'Attendance %') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>{{ row.class_name }}</td>
+                    <td>{{ row.total_sessions }}</td>
+                    <td>{{ row.present_count }}</td>
+                    <td>{{ row.absence_count }}</td>
+                    <td>{{ '%.2f'|format(row.attendance_rate) }}%</td>
+                </tr>
+                {% endfor %}
+                {% if not rows %}
+                <tr><td colspan="5">{{ lang_text('Rapor verisi bulunamadi.', 'No report data found.') }}</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

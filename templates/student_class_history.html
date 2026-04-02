@@ -1,0 +1,90 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ t('my_attendance_history_title') }}{% endblock %}
+
+{% block content %}
+<style>
+    .history-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .history-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .history-head h1 {
+        margin-bottom: 0;
+    }
+
+    .card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 14px;
+    }
+
+    .back-link {
+        max-width: 220px;
+    }
+
+    .back-link button {
+        width: 100%;
+    }
+
+    @media (max-width: 768px) {
+        .history-head {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+</style>
+
+<div class="history-shell">
+<div class="history-head">
+    <h1>{{ cls.name }} - {{ t('my_attendance_history') }}</h1>
+    <a class="back-link" href="{{ url_for('student_dashboard') }}"><button type="button">{{ t('back') }}</button></a>
+</div>
+
+{% if history_rows %}
+<div class="card">
+<table>
+    <thead>
+        <tr>
+            <th>{{ t('date') }}</th>
+            <th>{{ t('week') }}</th>
+            <th>{{ t('status') }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in history_rows %}
+        <tr>
+            <td>{{ row.date.strftime('%d-%m-%Y %H:%M') }}</td>
+            <td>{{ row.week or '-' }}</td>
+            <td>
+                {% if row.present %}
+                    <span class="chip chip-good">{{ t('present') }}</span>
+                {% else %}
+                    <span class="chip chip-bad">{{ t('absent') }}</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p>{{ t('no_confirmed_attendance') }}</p>
+{% endif %}
+
+</div>
+{% endblock %}
+
+
+
+
+

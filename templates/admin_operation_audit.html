@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lang_text('Admin İşlem Geçmişi', 'Admin Operation Audit') }}{% endblock %}
+
+{% block content %}
+<style>
+    .ops-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .ops-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .ops-note {
+        color: var(--text-soft);
+        margin: 0;
+        font-size: 14px;
+    }
+
+    .ops-filters {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .ops-filters input {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .ops-filters .actions {
+        display: flex;
+        gap: 8px;
+        align-items: end;
+    }
+
+    .ops-cards {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .ops-card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 10px;
+    }
+
+    .ops-card .label {
+        color: var(--text-soft);
+        font-size: 12px;
+        margin-bottom: 4px;
+    }
+
+    .ops-card .value {
+        color: var(--moonbeam);
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .ops-table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: auto;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .ops-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 1200px;
+    }
+
+    .ops-table th,
+    .ops-table td {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        text-align: left;
+        font-size: 13px;
+    }
+
+    .ops-table th {
+        color: var(--moonbeam);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .ops-table td {
+        color: var(--text-soft);
+        vertical-align: top;
+        word-break: break-word;
+    }
+
+    @media (max-width: 1024px) {
+        .ops-filters,
+        .ops-cards {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        .ops-filters,
+        .ops-cards {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="ops-shell">
+    <div class="ops-top">
+        <h1>{{ lang_text('Admin İşlem Geçmişi', 'Admin Operation Audit') }}</h1>
+        <a href="{{ url_for('admin_dashboard') }}"><button type="button">← {{ lang_text('Admin Paneli', 'Admin Dashboard') }}</button></a>
+    </div>
+
+    <p class="ops-note">{{ ('Son ' ~ limit ~ ' admin işlem kaydı gösteriliyor.') if current_lang == 'tr' else ('Showing the latest ' ~ limit ~ ' admin operation events.') }}</p>
+
+    <form method="get" class="ops-filters">
+        <input type="text" name="action" placeholder="{{ lang_text('İşlem', 'Action') }}" value="{{ filters.action }}">
+        <input type="text" name="status" placeholder="{{ lang_text('Durum', 'Status') }}" value="{{ filters.status }}">
+        <input type="text" name="actor_user_id" placeholder="{{ lang_text('Yapan Kullanıcı ID', 'Actor User ID') }}" value="{{ filters.actor_user_id }}">
+        <input type="text" name="target_user_id" placeholder="{{ lang_text('Hedef Kullanıcı ID', 'Target User ID') }}" value="{{ filters.target_user_id }}">
+        <input type="text" name="from" placeholder="{{ lang_text('Başlangıç (YYYY-AA-GG)', 'From (YYYY-MM-DD)') }}" value="{{ filters.from }}">
+        <input type="text" name="to" placeholder="{{ lang_text('Bitiş (YYYY-AA-GG)', 'To (YYYY-MM-DD)') }}" value="{{ filters.to }}">
+        <div class="actions">
+            <input type="number" name="limit" min="1" max="500" value="{{ limit }}">
+            <button type="submit">{{ lang_text('Uygula', 'Apply') }}</button>
+            <a href="{{ url_for('admin_operation_audit_report') }}"><button type="button">{{ lang_text('Temizle', 'Clear') }}</button></a>
+        </div>
+    </form>
+
+    <div class="ops-cards">
+        <article class="ops-card">
+            <div class="label">{{ lang_text('Yüklenen Kayıt', 'Loaded Events') }}</div>
+            <div class="value">{{ summary.loaded_events }}</div>
+        </article>
+        <article class="ops-card">
+            <div class="label">{{ lang_text('Güncellendi', 'Updated') }}</div>
+            <div class="value">{{ summary.updated_count }}</div>
+        </article>
+        <article class="ops-card">
+            <div class="label">{{ lang_text('Reddedildi', 'Rejected') }}</div>
+            <div class="value">{{ summary.rejected_count }}</div>
+        </article>
+        <article class="ops-card">
+            <div class="label">{{ lang_text('Hata', 'Errors') }}</div>
+            <div class="value">{{ summary.error_count }}</div>
+        </article>
+    </div>
+
+    <div class="ops-table-wrap">
+        <table class="ops-table">
+            <thead>
+                <tr>
+                    <th>{{ lang_text('Zaman Damgası (UTC)', 'Timestamp (UTC)') }}</th>
+                    <th>{{ lang_text('İşlem', 'Action') }}</th>
+                    <th>{{ lang_text('Durum', 'Status') }}</th>
+                    <th>{{ lang_text('Yapan Kullanıcı', 'Actor User') }}</th>
+                    <th>{{ lang_text('Hedef Kullanıcı', 'Target User') }}</th>
+                    <th>{{ lang_text('Eski Değer', 'Old Value') }}</th>
+                    <th>{{ lang_text('Yeni Değer', 'New Value') }}</th>
+                    <th>{{ lang_text('Detay', 'Detail') }}</th>
+                    <th>IP</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if events %}
+                    {% for event in events %}
+                        <tr>
+                            <td>{{ event.timestamp }}</td>
+                            <td>{{ event.action }}</td>
+                            <td>{{ event.status }}</td>
+                            <td>{{ event.actor_user_id }} / {{ event.actor_user_email }}</td>
+                            <td>{{ event.target_user_id }} / {{ event.target_user_email }}</td>
+                            <td>{{ event.old_value }}</td>
+                            <td>{{ event.new_value }}</td>
+                            <td>{{ event.detail }}</td>
+                            <td>{{ event.ip }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="9">{{ lang_text('Henüz admin işlem kaydı bulunmuyor.', 'No admin operation event has been recorded yet.') }}</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

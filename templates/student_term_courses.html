@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ t('term_courses') }}{% endblock %}
+{% block content %}
+<style>
+    .page-shell { display:flex; flex-direction:column; gap:14px; }
+    .top { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+    .top h1 { margin:0; }
+    .meta { color:var(--text-soft); font-size:13px; margin:0; }
+    .status { border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:rgba(255,255,255,0.04); }
+    .status.open { border-color:rgba(42,157,92,0.45); background:rgba(42,157,92,0.08); }
+    .status.closed { border-color:rgba(192,57,43,0.45); background:rgba(192,57,43,0.08); }
+    .grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
+    .card { border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,0.04); padding:12px; }
+    .card h2 { margin:0 0 8px; color:var(--moonbeam); font-size:17px; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { border-bottom:1px solid var(--line); text-align:left; padding:8px; vertical-align:top; }
+    th { color:var(--text-soft); font-weight:700; }
+    .pill { display:inline-block; border:1px solid var(--line); border-radius:999px; padding:2px 8px; font-size:11px; color:var(--text-soft); }
+    .ops { display:flex; gap:6px; flex-wrap:wrap; }
+    @media (max-width: 960px) { .grid { grid-template-columns:1fr; } }
+</style>
+
+<div class="page-shell">
+    <div class="top">
+        <div>
+            <h1>{{ t('term_courses') }}</h1>
+            <p class="meta">{{ student.user.name }} - {{ student.student_number }}</p>
+        </div>
+        <div>
+            <a href="{{ url_for('student_dashboard') }}"><button type="button">{{ t('student_home') }}</button></a>
+        </div>
+    </div>
+
+    <div class="status {% if is_open %}open{% else %}closed{% endif %}">
+        <strong>{{ lang_text('Ders alma-birakma penceresi', 'Add-drop window') }}:</strong>
+        {% if is_open %}{{ lang_text('ACIK', 'OPEN') }}{% else %}{{ lang_text('KAPALI', 'CLOSED') }}{% endif %}
+        <br>
+        <span class="meta">
+            {{ lang_text('Baslangic', 'Start') }}: {{ policy.add_drop_start.strftime('%d-%m-%Y %H:%M') if policy and policy.add_drop_start else '-' }} |
+            {{ lang_text('Bitis', 'End') }}: {{ policy.add_drop_end.strftime('%d-%m-%Y %H:%M') if policy and policy.add_drop_end else '-' }} |
+            {{ lang_text('Kredi Limiti', 'Credit Limit') }}: {{ policy.min_credits if policy else 0 }} - {{ policy.max_credits if policy else 30 }} |
+            {{ lang_text('Mevcut Kredi', 'Current Credits') }}: {{ enrolled_credits }}
+        </span>
+    </div>
+
+    <div class="grid">
+        <section class="card">
+            <h2>{{ lang_text('Aldigim Dersler', 'My Courses') }}</h2>
+            {% if enrollments %}
+            <table>
+                <thead>
+                    <tr><th>{{ lang_text('Kod', 'Code') }}</th><th>{{ lang_text('Ders', 'Course') }}</th><th>{{ lang_text('Kredi', 'Credit') }}</th><th>{{ lang_text('Islem', 'Action') }}</th></tr>
+                </thead>
+                <tbody>
+                    {% for en in enrollments %}
+                    <tr>
+                        <td>{{ en.course.code if en.course else '-' }}</td>
+                        <td>{{ en.course.title if en.course else '-' }}</td>
+                        <td>{{ en.course.credit if en.course else 0 }}</td>
+                        <td>
+                            <form method="post" action="{{ url_for('student_term_courses_update') }}">
+                                <input type="hidden" name="action" value="drop">
+                                <input type="hidden" name="course_id" value="{{ en.course_id }}">
+                                <button type="submit" {% if not is_open %}disabled{% endif %}>{{ lang_text('Birak', 'Drop') }}</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="meta">{{ lang_text('Kayitli ders yok.', 'No enrolled course.') }}</p>
+            {% endif %}
+        </section>
+
+        <section class="card">
+            <h2>{{ lang_text('Acik Dersler', 'Available Courses') }}</h2>
+            {% if available_courses %}
+            <table>
+                <thead>
+                    <tr><th>{{ lang_text('Kod', 'Code') }}</th><th>{{ lang_text('Ders', 'Course') }}</th><th>{{ lang_text('Kredi', 'Credit') }}</th><th>{{ lang_text('Kontenjan', 'Capacity') }}</th><th>{{ lang_text('Saat', 'Schedule') }}</th><th>{{ lang_text('Islem', 'Action') }}</th></tr>
+                </thead>
+                <tbody>
+                    {% for course in available_courses %}
+                    <tr>
+                        <td>{{ course.code }}</td>
+                        <td>{{ course.title }}</td>
+                        <td>{{ course.credit }}</td>
+                        <td>{{ course_student_counts.get(course.id, 0) }}/{{ course.capacity or '-' }}</td>
+                        <td>{{ course.schedule_slot or '-' }}</td>
+                        <td>
+                            {% if course.id in enrolled_course_ids %}
+                                <span class="pill">{{ lang_text('Kayitli', 'Enrolled') }}</span>
+                            {% else %}
+                                <form method="post" action="{{ url_for('student_term_courses_update') }}">
+                                    <input type="hidden" name="action" value="add">
+                                    <input type="hidden" name="course_id" value="{{ course.id }}">
+                                    <button type="submit" {% if not is_open %}disabled{% endif %}>{{ lang_text('Ekle', 'Add') }}</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="meta">{{ lang_text('Acik ders bulunamadi.', 'No available courses found.') }}</p>
+            {% endif %}
+        </section>
+    </div>
+</div>
+
+{% endblock %}

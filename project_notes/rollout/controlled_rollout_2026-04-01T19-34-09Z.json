@@ -1,0 +1,55 @@
+{
+  "captured_at_utc": "2026-04-01T19:33:54.390891Z",
+  "phase": "canary",
+  "status": "approved",
+  "steps": [
+    {
+      "name": "Latest release+rollback rehearsal is successful",
+      "passed": true,
+      "detail": {
+        "report_path": "C:\\Uygulama\\qr_attandance_project\\project_notes\\release\\release_rollback_rehearsal_2026-04-01T19-33-32Z.json",
+        "report_status": "ok"
+      }
+    },
+    {
+      "name": "Backup snapshot before rollout",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "backup_dir": "C:\\Uygulama\\qr_attandance_project\\backups\\drill_20260401_223354",
+        "output_tail": "BACKUP_OK C:\\Uygulama\\qr_attandance_project\\backups\\drill_20260401_223354"
+      }
+    },
+    {
+      "name": "Regression suite is green",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "output_tail": "34:01,262 INFO app EMAIL_DRY_RUN to=eminetan2015@gmail.com subject=Dry Run\n2026-04-01 22:34:01,263 INFO app EMAIL_DRY_RUN to=teacher.target.7bbfafdc@example.com subject=Dry Run\n................................2026-04-01 22:34:05,080 WARNING app Permission denied: user_id=7 role=teacher endpoint=student_account permission=student.account.update method=GET path=/student/account ip=None\n..2026-04-01 22:34:05,082 WARNING app Permission denied: user_id=42 role=student endpoint=teacher_dashboard permission=teacher.dashboard.view method=GET path=/teacher_dashboard ip=None\n......................................2026-04-01 22:34:05,097 WARNING app Student event ownership denied: user_id=42 student_id=42 event_id=8 endpoint=student_dashboard\n..2026-04-01 22:34:05,097 WARNING app Student membership denied: user_id=42 student_id=42 class_id=7 endpoint=student_class_history\n..........2026-04-01 22:34:05,109 WARNING app Teacher ownership denied: user_id=42 class_id=10 endpoint=session_stats\n.2026-04-01 22:34:05,109 WARNING app Teacher ownership denied: user_id=42 class_id=10 endpoint=class_detail\n...\n----------------------------------------------------------------------\nRan 96 tests in 8.122s\n\nOK"
+      }
+    },
+    {
+      "name": "UAT smoke is fully passing",
+      "passed": true,
+      "detail": {
+        "exit_code": 0,
+        "passed": 10,
+        "total": 10,
+        "output_tail": "UAT smoke report saved: project_notes/uat/uat_smoke_2026-04-01T19-34-09Z.json\nPass rate: 10/10 (100.0%)\n[PASS] Health endpoint responds with snapshot - status_code=200, keys=['database_error', 'database_ok', 'generated_at_utc', 'latency_ms', 'reasons']\n[PASS] Login page is reachable - status_code=200\n[PASS] Admin can open user inventory - status_code=200\n[PASS] Admin can open request metrics page - status_code=200\n[PASS] Admin assignment form contains CSRF token field - status_code=200, csrf_field=True\n[PASS] Teacher can open dashboard - status_code=200\n[PASS] Teacher is blocked from admin inventory - status_code=302\n[PASS] Teacher dashboard average latency within threshold - avg_ms=3.88, threshold_ms=8.0\n[PASS] Student can open dashboard - status_code=200\n[PASS] Student is blocked from teacher dashboard - status_code=302\n2026-04-01 22:34:08,742 WARNING app Slow request detected: endpoint=admin_class_assignments method=GET status=200 duration_ms=970.37"
+      }
+    },
+    {
+      "name": "Health gate returns valid snapshot",
+      "passed": true,
+      "detail": {
+        "status_code": 200,
+        "status": "healthy",
+        "database_ok": true,
+        "error_rate_pct": 0.0,
+        "p95_ms": 0.0
+      }
+    }
+  ],
+  "recommended_next_action": "Proceed with canary rollout window and monitor health/metrics dashboards.",
+  "finished_at_utc": "2026-04-01T19:34:09.621729Z"
+}

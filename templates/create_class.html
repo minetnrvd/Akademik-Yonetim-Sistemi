@@ -1,0 +1,17 @@
+﻿{% extends "base.html" %}
+{% block title %}{{ t('create_class') }}{% endblock %}
+{% block content %}
+
+<h2>{{ t('create_new_class') }}</h2>
+<form method="POST">
+    <label for="class_name">{{ t('class_name') }}:</label>
+    <input type="text" name="class_name" id="class_name" required>
+    <button type="submit">{{ t('create') }}</button>
+</form>
+<a href="{{ url_for('teacher_dashboard') }}">{{ t('back') }}</a>
+
+{% endblock %}
+
+
+
+

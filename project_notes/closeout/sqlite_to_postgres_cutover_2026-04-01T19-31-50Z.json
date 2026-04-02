@@ -1,0 +1,193 @@
+{
+  "captured_at_utc": "2026-04-01T19:31:50.270686Z",
+  "status": "completed",
+  "steps": [
+    {
+      "name": "alembic_upgrade",
+      "passed": true,
+      "detail": "skipped by flag"
+    },
+    {
+      "name": "table_mapping",
+      "passed": true,
+      "detail": {
+        "source_tables": 16,
+        "target_tables": 16,
+        "copy_tables": [
+          "academic_terms",
+          "users",
+          "admin_operation_logs",
+          "classes",
+          "courses",
+          "messages",
+          "permission_audit_logs",
+          "students",
+          "announcements",
+          "attendance_sessions",
+          "course_enrollments",
+          "student_calendar_events",
+          "student_classes",
+          "attendance_records",
+          "grade_records"
+        ]
+      }
+    },
+    {
+      "name": "truncate_target",
+      "passed": true,
+      "detail": {
+        "tables": [
+          "academic_terms",
+          "users",
+          "admin_operation_logs",
+          "classes",
+          "courses",
+          "messages",
+          "permission_audit_logs",
+          "students",
+          "announcements",
+          "attendance_sessions",
+          "course_enrollments",
+          "student_calendar_events",
+          "student_classes",
+          "attendance_records",
+          "grade_records"
+        ]
+      }
+    },
+    {
+      "name": "row_count_verification",
+      "passed": true,
+      "detail": "See table_results"
+    },
+    {
+      "name": "sequence_sync",
+      "passed": true,
+      "detail": {
+        "updated_sequences": {
+          "academic_terms": 1,
+          "users": 1333,
+          "admin_operation_logs": 245,
+          "classes": 335,
+          "courses": 1,
+          "messages": 1,
+          "permission_audit_logs": 85,
+          "announcements": 1,
+          "attendance_sessions": 4,
+          "course_enrollments": 1,
+          "student_calendar_events": 1,
+          "attendance_records": 5,
+          "grade_records": 1
+        },
+        "updated_count": 13
+      }
+    }
+  ],
+  "table_results": [
+    {
+      "table": "academic_terms",
+      "source_count": 0,
+      "copied_count": 0,
+      "target_count": 0,
+      "passed": true
+    },
+    {
+      "table": "users",
+      "source_count": 1332,
+      "copied_count": 1332,
+      "target_count": 1332,
+      "passed": true
+    },
+    {
+      "table": "admin_operation_logs",
+      "source_count": 244,
+      "copied_count": 244,
+      "target_count": 244,
+      "passed": true
+    },
+    {
+      "table": "classes",
+      "source_count": 334,
+      "copied_count": 334,
+      "target_count": 334,
+      "passed": true
+    },
+    {
+      "table": "courses",
+      "source_count": 0,
+      "copied_count": 0,
+      "target_count": 0,
+      "passed": true
+    },
+    {
+      "table": "messages",
+      "source_count": 0,
+      "copied_count": 0,
+      "target_count": 0,
+      "passed": true
+    },
+    {
+      "table": "permission_audit_logs",
+      "source_count": 84,
+      "copied_count": 84,
+      "target_count": 84,
+      "passed": true
+    },
+    {
+      "table": "students",
+      "source_count": 335,
+      "copied_count": 335,
+      "target_count": 335,
+      "passed": true
+    },
+    {
+      "table": "announcements",
+      "source_count": 0,
+      "copied_count": 0,
+      "target_count": 0,
+      "passed": true
+    },
+    {
+      "table": "attendance_sessions",
+      "source_count": 3,
+      "copied_count": 3,
+      "target_count": 3,
+      "passed": true
+    },
+    {
+      "table": "course_enrollments",
+      "source_count": 0,
+      "copied_count": 0,
+      "target_count": 0,
+      "passed": true
+    },
+    {
+      "table": "student_calendar_events",
+      "source_count": 0,
+      "copied_count": 0,
+      "target_count": 0,
+      "passed": true
+    },
+    {
+      "table": "student_classes",
+      "source_count": 17,
+      "copied_count": 17,
+      "target_count": 17,
+      "passed": true
+    },
+    {
+      "table": "attendance_records",
+      "source_count": 4,
+      "copied_count": 4,
+      "target_count": 4,
+      "passed": true
+    },
+    {
+      "table": "grade_records",
+      "source_count": 0,
+      "copied_count": 0,
+      "target_count": 0,
+      "passed": true
+    }
+  ]
+}

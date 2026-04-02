@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lang_text('E-posta Bildirimleri', 'Email Notifications') }}{% endblock %}
+
+{% block content %}
+<style>
+    .notify-shell { display: flex; flex-direction: column; gap: 12px; }
+    .notify-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .notify-note { margin: 0; color: var(--text-soft); }
+    .notify-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .notify-card { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: rgba(255, 255, 255, 0.03); }
+    .notify-card .label { color: var(--text-soft); font-size: 12px; }
+    .notify-card .value { color: var(--moonbeam); font-size: 19px; font-weight: 700; margin-top: 4px; }
+    .notify-panel { border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,0.03); padding: 12px; }
+    .notify-panel h3 { margin: 0 0 8px; }
+    .notify-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .notify-form .full { grid-column: 1 / -1; }
+    .notify-form input, .notify-form select, .notify-form textarea { width: 100%; }
+    .notify-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .invalid-list { margin: 8px 0 0; padding-left: 16px; color: #f2c6c6; }
+    .announce-list { display: grid; gap: 8px; margin-top: 8px; }
+    .announce-item { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: rgba(255, 255, 255, 0.02); }
+    .announce-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+    .announce-title { font-weight: 700; color: var(--moonbeam); }
+    .announce-meta { color: var(--text-soft); font-size: 12px; }
+    .announce-role { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; color: var(--text-soft); }
+    .announce-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    @media (max-width: 980px) { .notify-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .notify-form { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .notify-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="notify-shell">
+    <div class="notify-top">
+        <h1>{{ lang_text('E-posta Bildirimleri', 'Email Notifications') }}</h1>
+        <a href="{{ url_for('admin_dashboard') }}"><button type="button">← {{ lang_text('Admin Paneli', 'Admin Dashboard') }}</button></a>
+    </div>
+
+    <p class="notify-note">{{ lang_text('Rol bazlı e-posta bildirimi gönderimi. Dry-run aktifse e-posta gönderilmez, yalnızca doğrulama/log yapılır.', 'Role-based email delivery. If dry-run is enabled, email is not sent and only validation/logging is performed.') }}</p>
+
+    <section class="notify-grid">
+        <article class="notify-card"><div class="label">{{ lang_text('Seçili Rol', 'Selected Role') }}</div><div class="value">{{ stats.selected_role }}</div></article>
+        <article class="notify-card"><div class="label">{{ lang_text('Hedef Kullanıcı', 'Target Users') }}</div><div class="value">{{ stats.selected_user_count }}</div></article>
+        <article class="notify-card"><div class="label">{{ lang_text('Geçersiz E-posta', 'Invalid Emails') }}</div><div class="value">{{ stats.invalid_email_count }}</div></article>
+        <article class="notify-card"><div class="label">{{ lang_text('Mod', 'Mode') }}</div><div class="value">{{ 'DRY-RUN' if stats.dry_run else lang_text('CANLI', 'LIVE') }}</div></article>
+    </section>
+
+    <section class="notify-panel">
+        <h3>{{ lang_text('Toplu Gönderim', 'Broadcast') }}</h3>
+        <form method="post" class="notify-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="send_broadcast">
+
+            <div>
+                <label>{{ lang_text('Hedef Rol', 'Target Role') }}</label>
+                <select name="target_role">
+                    <option value="all" {% if stats.selected_role == 'all' %}selected{% endif %}>{{ lang_text('Tümü', 'All') }}</option>
+                    <option value="student" {% if stats.selected_role == 'student' %}selected{% endif %}>{{ lang_text('Öğrenci', 'Student') }}</option>
+                    <option value="teacher" {% if stats.selected_role == 'teacher' %}selected{% endif %}>{{ lang_text('Öğretmen', 'Teacher') }}</option>
+                    <option value="admin" {% if stats.selected_role == 'admin' %}selected{% endif %}>{{ lang_text('Admin', 'Admin') }}</option>
+                </select>
+            </div>
+
+            <div>
+                <label>{{ lang_text('Maks. Alıcı', 'Max Recipients') }}</label>
+                <input type="number" name="max_recipients" min="1" max="2000" value="200" required>
+            </div>
+
+            <div class="full">
+                <label>{{ lang_text('Konu', 'Subject') }}</label>
+                <input type="text" name="subject" maxlength="150" required>
+            </div>
+
+            <div class="full">
+                <label>{{ lang_text('İçerik', 'Body') }}</label>
+                <textarea name="body" rows="6" maxlength="2000" required></textarea>
+            </div>
+
+            <div class="full notify-actions">
+                <button type="submit">{{ lang_text('Toplu Gönder', 'Send Broadcast') }}</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="notify-panel">
+        <h3>{{ lang_text('Test E-postası', 'Test Email') }}</h3>
+        <form method="post" class="notify-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="send_test">
+
+            <div class="full">
+                <label>{{ lang_text('Test E-posta Adresi', 'Test Email Address') }}</label>
+                <input type="email" name="test_email" maxlength="254" required>
+            </div>
+
+            <div class="full">
+                <label>{{ lang_text('Konu', 'Subject') }}</label>
+                <input type="text" name="subject" maxlength="150" required>
+            </div>
+
+            <div class="full">
+                <label>{{ lang_text('İçerik', 'Body') }}</label>
+                <textarea name="body" rows="4" maxlength="2000" required></textarea>
+            </div>
+
+            <div class="full notify-actions">
+                <button type="submit">{{ lang_text('Test Gönder', 'Send Test') }}</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="notify-panel">
+        <h3>{{ lang_text('Duyuru Yayınla', 'Publish Announcement') }}</h3>
+        <form method="post" class="notify-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="publish_announcement">
+
+            <div>
+                <label>{{ lang_text('Hedef Rol', 'Target Role') }}</label>
+                <select name="announcement_target_role">
+                    <option value="all">{{ lang_text('Tümü', 'All') }}</option>
+                    <option value="student">{{ lang_text('Öğrenci', 'Student') }}</option>
+                    <option value="teacher">{{ lang_text('Öğretmen', 'Teacher') }}</option>
+                    <option value="admin">{{ lang_text('Admin', 'Admin') }}</option>
+                </select>
+            </div>
+
+            <div>
+                <label>{{ lang_text('Hedef Ders', 'Target Course') }}</label>
+                <select name="announcement_course_id">
+                    <option value="">{{ lang_text('Genel Duyuru', 'General Announcement') }}</option>
+                    {% for course in courses %}
+                    <option value="{{ course.id }}">{{ course.code }} - {{ course.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label>{{ lang_text('Başlangıç Zamanı', 'Start Time') }}</label>
+                <input type="datetime-local" name="announcement_starts_at">
+            </div>
+
+            <div>
+                <label>{{ lang_text('Bitiş Zamanı', 'End Time') }}</label>
+                <input type="datetime-local" name="announcement_ends_at">
+            </div>
+
+            <div class="full">
+                <label>{{ lang_text('Duyuru Başlığı', 'Announcement Title') }}</label>
+                <input type="text" name="announcement_title" maxlength="150" required>
+            </div>
+
+            <div class="full">
+                <label>{{ lang_text('Duyuru İçeriği', 'Announcement Body') }}</label>
+                <textarea name="announcement_body" rows="5" maxlength="2000" required></textarea>
+            </div>
+
+            <div class="full notify-actions">
+                <button type="submit">{{ lang_text('Duyuruyu Yayınla', 'Publish Announcement') }}</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="notify-panel">
+        <h3>{{ lang_text('Son Duyurular', 'Recent Announcements') }}</h3>
+        {% if recent_announcements %}
+        <div class="announce-list">
+            {% for ann in recent_announcements %}
+            <article class="announce-item">
+                <div class="announce-head">
+                    <div class="announce-title">{{ ann.title }}</div>
+                    <span class="announce-role">{{ ann.target_role or 'all' }}</span>
+                </div>
+                <div class="announce-meta">
+                    {{ ann.author.name if ann.author else 'Admin' }} · {{ ann.created_at.strftime('%d-%m-%Y %H:%M') if ann.created_at else '-' }}
+                    {% if ann.course %} · {{ ann.course.code }} - {{ ann.course.title }}{% endif %}
+                    {% if ann.starts_at %} · {{ lang_text('Başlangıç', 'Starts') }}: {{ ann.starts_at.strftime('%d-%m-%Y %H:%M') }}{% endif %}
+                    {% if ann.ends_at %} · {{ lang_text('Bitiş', 'Ends') }}: {{ ann.ends_at.strftime('%d-%m-%Y %H:%M') }}{% endif %}
+                </div>
+                <div style="margin-top:6px; color:var(--text-soft);">{{ ann.body }}</div>
+                <form method="post" class="notify-form" style="margin-top:10px;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="update_announcement">
+                    <input type="hidden" name="announcement_id" value="{{ ann.id }}">
+
+                    <div>
+                        <label>{{ lang_text('Hedef Rol', 'Target Role') }}</label>
+                        <select name="announcement_target_role">
+                            <option value="all" {% if (ann.target_role or 'all') == 'all' %}selected{% endif %}>{{ lang_text('Tümü', 'All') }}</option>
+                            <option value="student" {% if ann.target_role == 'student' %}selected{% endif %}>{{ lang_text('Öğrenci', 'Student') }}</option>
+                            <option value="teacher" {% if ann.target_role == 'teacher' %}selected{% endif %}>{{ lang_text('Öğretmen', 'Teacher') }}</option>
+                            <option value="admin" {% if ann.target_role == 'admin' %}selected{% endif %}>{{ lang_text('Admin', 'Admin') }}</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>{{ lang_text('Hedef Ders', 'Target Course') }}</label>
+                        <select name="announcement_course_id">
+                            <option value="">{{ lang_text('Genel Duyuru', 'General Announcement') }}</option>
+                            {% for course in courses %}
+                            <option value="{{ course.id }}" {% if ann.course_id == course.id %}selected{% endif %}>{{ course.code }} - {{ course.title }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>{{ lang_text('Başlangıç Zamanı', 'Start Time') }}</label>
+                        <input type="datetime-local" name="announcement_starts_at" value="{{ ann.starts_at.strftime('%Y-%m-%dT%H:%M') if ann.starts_at else '' }}">
+                    </div>
+
+                    <div>
+                        <label>{{ lang_text('Bitiş Zamanı', 'End Time') }}</label>
+                        <input type="datetime-local" name="announcement_ends_at" value="{{ ann.ends_at.strftime('%Y-%m-%dT%H:%M') if ann.ends_at else '' }}">
+                    </div>
+
+                    <div class="full">
+                        <label>{{ lang_text('Duyuru Başlığı', 'Announcement Title') }}</label>
+                        <input type="text" name="announcement_title" maxlength="150" value="{{ ann.title }}" required>
+                    </div>
+
+                    <div class="full">
+                        <label>{{ lang_text('Duyuru İçeriği', 'Announcement Body') }}</label>
+                        <textarea name="announcement_body" rows="4" maxlength="2000" required>{{ ann.body }}</textarea>
+                    </div>
+
+                    <div class="full announce-actions">
+                        <button type="submit">{{ lang_text('Güncelle', 'Update') }}</button>
+                    </div>
+                </form>
+                <form method="post" class="announce-actions">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="delete_announcement">
+                    <input type="hidden" name="announcement_id" value="{{ ann.id }}">
+                    <button type="submit">{{ lang_text('Sil', 'Delete') }}</button>
+                </form>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="notify-note">{{ lang_text('Henüz yayınlanmış duyuru yok.', 'No announcements have been published yet.') }}</p>
+        {% endif %}
+    </section>
+
+    {% if stats.sample_invalid_emails %}
+    <section class="notify-panel">
+        <h3>{{ lang_text('Geçersiz E-posta Örnekleri', 'Invalid Email Samples') }}</h3>
+        <ul class="invalid-list">
+            {% for email in stats.sample_invalid_emails %}
+                <li>{{ email }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

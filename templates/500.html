@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('server_error') }}{% endblock %}
+
+{% block content %}
+<h1>{{ t('something_went_wrong_500') }}</h1>
+<p>{{ t('unexpected_server_error') }}</p>
+<p>{{ t('try_again_moment') }}</p>
+<p style="margin-top:6px;">If this problem continues, sign out and sign in again, then retry the same action once.</p>
+
+<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
+    {% if session.get('role') == 'teacher' %}
+        <a href="{{ url_for('teacher_dashboard') }}"><button type="button">{{ t('teacher_dashboard') }}</button></a>
+    {% elif session.get('role') == 'student' %}
+        <a href="{{ url_for('student_dashboard') }}"><button type="button">{{ t('student_home') }}</button></a>
+    {% else %}
+        <a href="{{ url_for('login') }}"><button type="button">{{ t('go_to_login') }}</button></a>
+    {% endif %}
+</div>
+{% endblock %}

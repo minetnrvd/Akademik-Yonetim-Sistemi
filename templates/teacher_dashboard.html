@@ -1,0 +1,1085 @@
+{% extends "base.html" %}
+{% block title %}{{ t('teacher_dashboard') }}{% endblock %}
+{% block content %}
+
+<style>
+    .t-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .t-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .t-top h1 { margin: 0; }
+
+    .t-sub {
+        margin: 0;
+        color: var(--text-soft);
+        font-size: 14px;
+    }
+
+    .t-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .summary-card {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 14px 16px;
+        background: rgba(255,255,255,0.04);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .summary-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        border-radius: 16px 16px 0 0;
+    }
+
+    .summary-card.blue::before { background: linear-gradient(90deg, #2d6fd4, #5a9cf5); }
+    .summary-card.green::before { background: linear-gradient(90deg, #2a9d5c, #5abf80); }
+    .summary-card.amber::before { background: linear-gradient(90deg, #c8822a, #e8b45a); }
+
+    .summary-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-soft);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .summary-value {
+        margin-top: 4px;
+        font-size: 26px;
+        font-weight: 700;
+        color: var(--moonbeam);
+        line-height: 1;
+    }
+
+    .summary-sub {
+        margin-top: 3px;
+        font-size: 12px;
+        color: var(--text-soft);
+        opacity: 0.75;
+    }
+
+    .t-layout {
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr);
+        gap: 14px;
+        align-items: start;
+    }
+
+    .t-sidebar {
+        position: sticky;
+        top: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .sidebar-label {
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text-soft);
+        text-transform: uppercase;
+        letter-spacing: 0.7px;
+        padding: 4px 6px 2px;
+        opacity: 0.7;
+    }
+
+    .nav-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 11px 14px;
+        background: rgba(255,255,255,0.04);
+        transition: background 0.18s ease, border-color 0.18s ease, transform 0.15s ease;
+    }
+
+    .nav-card:hover {
+        background: rgba(29,79,151,0.18);
+        border-color: rgba(93,147,220,0.5);
+        transform: translateY(-1px);
+        text-decoration: none;
+    }
+
+    .nav-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        flex-shrink: 0;
+    }
+
+    .nav-icon.blue { background: rgba(45,111,212,0.2); }
+    .nav-icon.green { background: rgba(42,157,92,0.2); }
+    .nav-icon.amber { background: rgba(200,130,42,0.2); }
+    .nav-icon.red { background: rgba(192,57,43,0.2); }
+    .nav-icon.purple { background: rgba(128,74,196,0.2); }
+
+    .nav-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .nav-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .nav-desc {
+        font-size: 11px;
+        color: var(--text-soft);
+        opacity: 0.75;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .t-main {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .top-pair {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .t-card {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px 16px;
+        background: rgba(255,255,255,0.04);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .t-card h2 {
+        margin: 0;
+        color: var(--moonbeam);
+        font-size: 17px;
+    }
+
+    .weather-form {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .weather-form input {
+        flex: 1;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,0.06);
+        color: var(--text);
+        font-size: 13px;
+    }
+
+    .weather-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .w-stat {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+    }
+
+    .w-label { font-size: 11px; color: var(--text-soft); }
+    .w-val { font-size: 16px; font-weight: 700; color: var(--moonbeam); }
+
+    .cal-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .cal-toolbar h4 {
+        margin: 0;
+        color: var(--moonbeam);
+        font-size: 14px;
+    }
+
+    .cal-view {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255,255,255,0.02);
+        padding: 10px;
+    }
+
+    .cal-weekdays,
+    .cal-days {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 4px;
+    }
+
+    .cal-weekdays span {
+        text-align: center;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text-soft);
+        padding: 4px 0;
+    }
+
+    .cal-day {
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        border-radius: 8px;
+        color: var(--text-soft);
+        cursor: default;
+    }
+
+    .cal-day.today {
+        background: rgba(29,79,151,0.4);
+        color: #a8c7ff;
+        font-weight: 700;
+        border: 1px solid rgba(93,147,220,0.5);
+    }
+
+    .cal-day.muted { color: rgba(255,255,255,0.15); }
+
+    .quick-note {
+        border: 1px solid rgba(42,157,92,0.3);
+        background: rgba(42,157,92,0.07);
+        border-radius: 14px;
+        padding: 10px 12px;
+        color: var(--text-soft);
+        font-size: 13px;
+    }
+
+    .announcement-list {
+        margin: 0;
+        padding-left: 18px;
+        display: grid;
+        gap: 8px;
+    }
+
+    .announcement-meta {
+        font-size: 12px;
+        color: var(--text-soft);
+    }
+
+    .student-lookup-form {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .student-lookup-form input {
+        flex: 1;
+        min-width: 180px;
+    }
+
+    .lookup-result {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+    }
+
+    .lookup-title {
+        margin: 0;
+        font-size: 15px;
+        color: var(--moonbeam);
+    }
+
+    .lookup-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .lookup-stat {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.02);
+        padding: 8px;
+    }
+
+    .lookup-stat-label {
+        font-size: 11px;
+        color: var(--text-soft);
+    }
+
+    .lookup-stat-value {
+        margin-top: 2px;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--moonbeam);
+    }
+
+    .lookup-subtitle {
+        margin: 0;
+        font-size: 13px;
+        color: var(--text-soft);
+        font-weight: 700;
+    }
+
+    .lookup-contact {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .lookup-contact-item {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .lookup-table-wrap {
+        overflow-x: auto;
+    }
+
+    .lookup-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 760px;
+    }
+
+    .lookup-table th,
+    .lookup-table td {
+        border-bottom: 1px solid var(--line);
+        padding: 8px;
+        font-size: 12px;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .lookup-table th {
+        color: var(--text-soft);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        font-size: 11px;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 2px 8px;
+        border: 1px solid var(--line);
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .status-pill.pass {
+        border-color: rgba(42,157,92,0.6);
+        color: #bdebcf;
+        background: rgba(42,157,92,0.14);
+    }
+
+    .status-pill.fail {
+        border-color: rgba(192,57,43,0.6);
+        color: #ffc3bb;
+        background: rgba(192,57,43,0.14);
+    }
+
+    .status-pill.pending {
+        border-color: rgba(216,183,90,0.6);
+        color: #f6ebc8;
+        background: rgba(216,183,90,0.14);
+    }
+
+    .day-editor {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 10px;
+    }
+
+    .day-editor-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+    }
+
+    .day-editor-title {
+        margin: 0;
+        color: var(--moonbeam);
+        font-size: 15px;
+    }
+
+    .plus-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 1px solid rgba(143, 184, 255, 0.45);
+        background: rgba(61, 106, 176, 0.25);
+        color: #eaf2ff;
+        font-size: 20px;
+        line-height: 1;
+        padding: 0;
+    }
+
+    .day-add-form {
+        display: none;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .day-add-form.open {
+        display: grid;
+    }
+
+    .day-add-form input,
+    .day-add-form select,
+    .day-add-form textarea {
+        width: 100%;
+    }
+
+    .event-item {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.03);
+        list-style: none;
+        margin-bottom: 8px;
+    }
+
+    .event-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .chip-tag {
+        border: 1px solid rgba(216, 183, 90, 0.5);
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 11px;
+        color: #f6ebc8;
+    }
+
+    .event-delete-form {
+        margin-top: 8px;
+    }
+
+    .day-cell {
+        min-height: 68px;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        padding: 6px;
+        font-size: 12px;
+        background: rgba(255,255,255,0.02);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        position: relative;
+        cursor: pointer;
+        transition: border-color 0.16s ease, background-color 0.16s ease;
+    }
+
+    .day-cell.selected {
+        border-color: rgba(143, 184, 255, 0.85);
+        background: rgba(61, 106, 176, 0.2);
+    }
+
+    .day-num { font-weight: 700; }
+
+    .day-dots {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .dot.exam { background: #d8b75a; }
+    .dot.activity { background: #8fb8ff; }
+
+    .today-badge {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        font-size: 10px;
+        border: 1px solid rgba(216, 183, 90, 0.6);
+        border-radius: 999px;
+        padding: 0 5px;
+        color: #f6ebc8;
+        background: rgba(216, 183, 90, 0.14);
+    }
+
+    @media (max-width: 960px) {
+        .t-layout { grid-template-columns: 1fr; }
+        .t-sidebar { position: static; }
+        .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .top-pair { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 560px) {
+        .summary-grid { grid-template-columns: 1fr 1fr; }
+        .lookup-grid { grid-template-columns: 1fr; }
+        .lookup-contact { grid-template-columns: 1fr; }
+    }
+</style>
+
+<div class="t-shell">
+    <div class="t-top">
+        <div>
+            <h1>{{ t('teacher_dashboard') }}</h1>
+            <p class="t-sub">{{ lang_text('Hos geldin, ', 'Welcome, ') }}{{ user_name }}</p>
+        </div>
+        <div class="t-actions">
+            <a href="{{ url_for('logout') }}"><button type="button">{{ lang_text('Cikis', 'Logout') }}</button></a>
+        </div>
+    </div>
+
+    <section class="summary-grid">
+        <article class="summary-card blue">
+            <div class="summary-label">{{ lang_text('Dersler', 'Classes') }}</div>
+            <div class="summary-value">{{ dashboard_summary.class_count }}</div>
+            <div class="summary-sub">{{ lang_text('Acilmis ders', 'Open courses') }}</div>
+        </article>
+        <article class="summary-card green">
+            <div class="summary-label">{{ lang_text('Aktif Oturumlar', 'Active Sessions') }}</div>
+            <div class="summary-value">{{ dashboard_summary.active_session_count }}</div>
+            <div class="summary-sub">{{ lang_text('Aktif yoklama', 'Active attendance') }}</div>
+        </article>
+        <article class="summary-card amber">
+            <div class="summary-label">{{ lang_text('Ogrenciler', 'Students') }}</div>
+            <div class="summary-value">{{ dashboard_summary.student_total }}</div>
+            <div class="summary-sub">{{ lang_text('Toplam ogrenci', 'Total students') }}</div>
+        </article>
+        <article class="summary-card blue">
+            <div class="summary-label">{{ lang_text('Onayli Oturumlar', 'Confirmed Sessions') }}</div>
+            <div class="summary-value">{{ dashboard_summary.confirmed_session_total }}</div>
+            <div class="summary-sub">{{ lang_text('Onaylanmis yoklama', 'Confirmed attendance') }}</div>
+        </article>
+    </section>
+
+    <div class="t-layout">
+        <aside class="t-sidebar">
+            <div class="sidebar-label">{{ lang_text('Ogretmen Islemleri', 'Teacher Actions') }}</div>
+
+            <a href="{{ url_for('teacher_attendance_hub') }}" class="nav-card">
+                <div class="nav-icon blue">📋</div>
+                <div class="nav-text">
+                    <span class="nav-title">{{ lang_text('Yoklama Yonetimi', 'Attendance Management') }}</span>
+                    <span class="nav-desc">{{ lang_text('Yoklama baslat ve aktif oturumu yonet', 'Start attendance and manage active sessions') }}</span>
+                </div>
+            </a>
+
+            <a href="{{ url_for('reports') }}" class="nav-card">
+                <div class="nav-icon amber">📊</div>
+                <div class="nav-text">
+                    <span class="nav-title">{{ lang_text('Raporlar', 'Reports') }}</span>
+                    <span class="nav-desc">{{ lang_text('Yoklama raporlari ve analiz', 'Attendance reports and analysis') }}</span>
+                </div>
+            </a>
+
+            <a href="{{ url_for('teacher_course_roster') }}" class="nav-card">
+                <div class="nav-icon green">👨‍🏫</div>
+                <div class="nav-text">
+                    <span class="nav-title">{{ lang_text('Ders Listesi', 'Course Roster') }}</span>
+                    <span class="nav-desc">{{ lang_text('Derslere kayitli ogrenciler', 'Students enrolled in courses') }}</span>
+                </div>
+            </a>
+
+            <a href="{{ url_for('teacher_grade_entry') }}" class="nav-card">
+                <div class="nav-icon red">📝</div>
+                <div class="nav-text">
+                    <span class="nav-title">{{ lang_text('Not Ekleme', 'Grade Entry') }}</span>
+                    <span class="nav-desc">{{ lang_text('Sinif ogrencilerine not girisi', 'Enter grades for students') }}</span>
+                </div>
+            </a>
+
+            <a href="{{ url_for('teacher_account') }}" class="nav-card">
+                <div class="nav-icon purple">👤</div>
+                <div class="nav-text">
+                    <span class="nav-title">{{ lang_text('Hesabim', 'My Account') }}</span>
+                    <span class="nav-desc">{{ lang_text('Profil ve sifre ayarlari', 'Profile and password settings') }}</span>
+                </div>
+            </a>
+        </aside>
+
+        <div class="t-main">
+            <section class="top-pair">
+                <article class="t-card">
+                    <h2>🌤 {{ lang_text('Hava Durumu', 'Weather') }}</h2>
+                    <form id="auto-weather-form" method="get" action="{{ url_for('teacher_dashboard') }}" style="display:none;">
+                        <input type="hidden" id="auto-lat" name="lat">
+                        <input type="hidden" id="auto-lon" name="lon">
+                    </form>
+
+                    <form method="get" action="{{ url_for('teacher_dashboard') }}" class="weather-form">
+                        <input type="text" name="city" value="{{ weather.city if weather else 'Lefkosa' }}" placeholder="{{ lang_text('Sehir gir', 'Enter city') }}" required>
+                        <button type="submit">{{ lang_text('Guncelle', 'Update') }}</button>
+                    </form>
+
+                    <button id="use-location-btn" type="button">📍 {{ lang_text('Konumumu Kullan', 'Use My Location') }}</button>
+
+                    {% if weather %}
+                        <div class="weather-grid">
+                            <div class="w-stat"><div class="w-label">{{ lang_text('Sehir', 'City') }}</div><div class="w-val">{{ weather.city }}</div></div>
+                            <div class="w-stat"><div class="w-label">{{ lang_text('Durum', 'Condition') }}</div><div class="w-val">{{ weather.condition }}</div></div>
+                            <div class="w-stat"><div class="w-label">{{ lang_text('Sicaklik', 'Temperature') }}</div><div class="w-val">{{ weather.temperature_c }} C</div></div>
+                            <div class="w-stat"><div class="w-label">{{ lang_text('Nem', 'Humidity') }}</div><div class="w-val">{{ weather.humidity }}%</div></div>
+                        </div>
+                    {% endif %}
+                </article>
+
+                <article class="t-card">
+                    <h2>📅 {{ lang_text('Takvim', 'Calendar') }}</h2>
+                    <p class="announcement-meta" style="margin-top:0;">{{ upcoming_event_count }} {{ lang_text('yaklasan oge', 'upcoming items') }}</p>
+                    <div class="cal-toolbar">
+                        <button type="button" id="cal-prev">‹ {{ lang_text('Onceki', 'Previous') }}</button>
+                        <h4 id="cal-title"></h4>
+                        <button type="button" id="cal-next">{{ lang_text('Sonraki', 'Next') }} ›</button>
+                    </div>
+                    <div class="cal-view">
+                        <div class="cal-weekdays" id="cal-weekdays"></div>
+                        <div class="cal-days" id="cal-days"></div>
+                    </div>
+
+                    <div class="day-editor" id="teacher-day-editor">
+                        <div class="day-editor-top">
+                            <h4 class="day-editor-title" id="teacher-selected-day-label">{{ lang_text('Takvimden bir gun secin.', 'Select a day from the calendar.') }}</h4>
+                            <button type="button" class="plus-btn" id="teacher-open-day-add" title="{{ lang_text('Oge ekle', 'Add item') }}">+</button>
+                        </div>
+
+                        <form method="post" action="{{ url_for('teacher_dashboard') }}" class="day-add-form" id="teacher-day-add-form">
+                            <input type="hidden" name="action" value="add_calendar_event">
+                            <input type="hidden" name="event_date" id="teacher-selected-day-input">
+                            <input type="text" name="title" placeholder="{{ lang_text('Baslik', 'Title') }}" required>
+                            <select name="event_type" required>
+                                <option value="exam">{{ lang_text('Sinav', 'Exam') }}</option>
+                                <option value="activity">{{ lang_text('Etkinlik', 'Activity') }}</option>
+                            </select>
+                            <textarea name="note" rows="3" placeholder="{{ lang_text('Istege bagli not', 'Optional note') }}"></textarea>
+                            <button type="submit">{{ lang_text('Takvime ekle', 'Add to calendar') }}</button>
+                        </form>
+
+                        <div id="teacher-day-event-list"></div>
+                    </div>
+                </article>
+            </section>
+
+            <article class="t-card">
+                <h2>📢 {{ lang_text('Duyurular', 'Announcements') }}</h2>
+                {% if teacher_announcements %}
+                    <ul class="announcement-list">
+                        {% for ann in teacher_announcements %}
+                            <li>
+                                <strong>{{ ann.title }}</strong><br>
+                                {{ ann.body }}
+                                <div class="announcement-meta">
+                                    {{ ann.created_at.strftime('%d-%m-%Y %H:%M') if ann.created_at else '-' }}
+                                    {% if ann.course %} · {{ ann.course.code }} - {{ ann.course.title }}{% endif %}
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p style="margin:0; color:var(--text-soft);">{{ lang_text('Aktif duyuru bulunmuyor.', 'No active announcements.') }}</p>
+                {% endif %}
+            </article>
+
+            <article class="t-card">
+                <h2>🔎 {{ lang_text('Ogrenci Dashboard Gorunumu', 'Student Dashboard Preview') }}</h2>
+                <form method="get" action="{{ url_for('teacher_dashboard') }}" class="student-lookup-form">
+                    <input
+                        type="text"
+                        name="student_number"
+                        value="{{ lookup_student_number or '' }}"
+                        maxlength="20"
+                        placeholder="{{ lang_text('Ogrenci numarasi girin', 'Enter student number') }}"
+                        required
+                    >
+                    <button type="submit">{{ lang_text('Goruntule', 'Preview') }}</button>
+                </form>
+
+                {% if student_lookup_error %}
+                    <p class="announcement-meta" style="color:#ffb4ab; margin:0;">{{ student_lookup_error }}</p>
+                {% endif %}
+
+                {% if student_dashboard_preview %}
+                    <div class="lookup-result">
+                        <h3 class="lookup-title">
+                            {{ student_dashboard_preview.name }}
+                            <span class="announcement-meta">({{ lang_text('No', 'No') }}: {{ student_dashboard_preview.student_number }})</span>
+                        </h3>
+                        <div class="lookup-grid">
+                            <div class="lookup-stat">
+                                <div class="lookup-stat-label">{{ lang_text('Bolumu', 'Department') }}</div>
+                                <div class="lookup-stat-value">{{ student_dashboard_preview.department }}</div>
+                            </div>
+                            <div class="lookup-stat">
+                                <div class="lookup-stat-label">{{ lang_text('Sinifi', 'Class Level') }}</div>
+                                <div class="lookup-stat-value">{{ student_dashboard_preview.class_level }}</div>
+                            </div>
+                        </div>
+
+                        <h4 class="lookup-subtitle">{{ lang_text('Iletisim Bilgileri', 'Contact Information') }}</h4>
+                        <div class="lookup-contact">
+                            <div class="lookup-contact-item">
+                                <div class="lookup-stat-label">{{ lang_text('E-posta', 'Email') }}</div>
+                                <div class="announcement-meta">{{ student_dashboard_preview.contact.email }}</div>
+                            </div>
+                            <div class="lookup-contact-item">
+                                <div class="lookup-stat-label">{{ lang_text('Telefon', 'Phone') }}</div>
+                                <div class="announcement-meta">{{ student_dashboard_preview.contact.phone or lang_text('Henuz tanimli degil', 'Not set yet') }}</div>
+                            </div>
+                            <div class="lookup-contact-item">
+                                <div class="lookup-stat-label">{{ lang_text('Adres', 'Address') }}</div>
+                                <div class="announcement-meta">{{ student_dashboard_preview.contact.address or lang_text('Henuz tanimli degil', 'Not set yet') }}</div>
+                            </div>
+                            <div class="lookup-contact-item">
+                                <div class="lookup-stat-label">{{ lang_text('Iletisim Tercihi', 'Contact Preference') }}</div>
+                                <div class="announcement-meta">{{ lang_text('E-posta', 'Email') if student_dashboard_preview.contact.contact_preference == 'email' else student_dashboard_preview.contact.contact_preference }}</div>
+                            </div>
+                        </div>
+
+                        <h4 class="lookup-subtitle">{{ lang_text('Ders ve Devamsizlik Durumu', 'Course and Attendance Status') }}</h4>
+                        {% if student_dashboard_preview.courses %}
+                            <div class="lookup-table-wrap">
+                                <table class="lookup-table">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ lang_text('Ders', 'Course') }}</th>
+                                            <th>{{ lang_text('Devamsizlik', 'Absences') }}</th>
+                                            <th>{{ lang_text('Yoklama Yuzdesi', 'Attendance Rate') }}</th>
+                                            <th>{{ lang_text('Devamsizlik Durumu', 'Attendance Status') }}</th>
+                                            <th>{{ lang_text('Kaldi/Gecti', 'Pass/Fail') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for course_item in student_dashboard_preview.courses %}
+                                            <tr>
+                                                <td>
+                                                    <strong>{{ course_item.course_code }}</strong><br>
+                                                    <span class="announcement-meta">{{ course_item.course_title }}</span>
+                                                </td>
+                                                <td>{{ course_item.absence_count }} / {{ course_item.confirmed_session_total }}</td>
+                                                <td>{{ '%.2f'|format(course_item.attendance_pct) }}%</td>
+                                                <td>
+                                                    {% if course_item.attendance_status == 'pass' %}
+                                                        <span class="status-pill pass">{{ lang_text('Gecti', 'Pass') }}</span>
+                                                    {% elif course_item.attendance_status == 'fail' %}
+                                                        <span class="status-pill fail">{{ lang_text('Kaldi', 'Fail') }}</span>
+                                                    {% else %}
+                                                        <span class="status-pill pending">{{ lang_text('Veri yok', 'No data') }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if course_item.grade_status == 'pass' %}
+                                                        <span class="status-pill pass">{{ lang_text('Gecti', 'Pass') }}</span>
+                                                    {% elif course_item.grade_status == 'fail' %}
+                                                        <span class="status-pill fail">{{ lang_text('Kaldi', 'Fail') }}</span>
+                                                    {% else %}
+                                                        <span class="status-pill pending">{{ lang_text('Beklemede', 'Pending') }}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="announcement-meta" style="margin:0;">{{ lang_text('Bu ogretmene ait kayitli ders bulunamadi.', 'No enrolled courses found for this teacher.') }}</p>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </article>
+        </div>
+    </div>
+</div>
+
+<script id="teacher-calendar-events-json" type="application/json">{{ calendar_events|tojson }}</script>
+<script id="teacher-calendar-i18n-json" type="application/json">{{ {
+    'select_day_prompt': lang_text('Takvimden bir gun secin.', 'Select a day from the calendar.'),
+    'selected_day': lang_text('Secili Gun', 'Selected Day'),
+    'no_events_this_day': lang_text('Bu gun icin etkinlik yok.', 'No events for this day.'),
+    'delete': lang_text('Sil', 'Delete'),
+    'dashboard_url': url_for('teacher_dashboard')
+}|tojson }}</script>
+<script>
+    function buildEventMap(events) {
+        const map = {};
+        for (const ev of events) {
+            const key = ev.event_date;
+            if (!map[key]) {
+                map[key] = [];
+            }
+            map[key].push(ev);
+        }
+        return map;
+    }
+
+    function renderCalendar(year, month, lang, eventMap) {
+        const weekdays = lang === 'tr'
+            ? ['Pzt', 'Sal', 'Car', 'Per', 'Cum', 'Cmt', 'Paz']
+            : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+        const title = document.getElementById('cal-title');
+        const weekdaysNode = document.getElementById('cal-weekdays');
+        const daysNode = document.getElementById('cal-days');
+        if (!title || !weekdaysNode || !daysNode) return;
+
+        title.textContent = new Intl.DateTimeFormat(lang === 'tr' ? 'tr-TR' : 'en-US', {
+            month: 'long', year: 'numeric'
+        }).format(new Date(year, month, 1));
+
+        weekdaysNode.innerHTML = weekdays.map((w) => `<span>${w}</span>`).join('');
+        daysNode.innerHTML = '';
+
+        const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (let i = 0; i < firstWeekday; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'day-cell muted';
+            daysNode.appendChild(cell);
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(year, month, d);
+            const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const events = eventMap[iso] || [];
+
+            const cell = document.createElement('div');
+            cell.className = 'day-cell';
+            if (dateObj.getTime() === today.getTime()) {
+                cell.classList.add('today');
+                const badge = document.createElement('span');
+                badge.className = 'today-badge';
+                badge.textContent = lang === 'tr' ? 'Bugun' : 'Today';
+                cell.appendChild(badge);
+            }
+
+            const num = document.createElement('div');
+            num.className = 'day-num';
+            num.textContent = String(d);
+            cell.appendChild(num);
+
+            if (events.length > 0) {
+                const dots = document.createElement('div');
+                dots.className = 'day-dots';
+                for (const ev of events.slice(0, 4)) {
+                    const dot = document.createElement('span');
+                    dot.className = `dot ${ev.event_type === 'exam' ? 'exam' : 'activity'}`;
+                    dot.title = ev.title;
+                    dots.appendChild(dot);
+                }
+                cell.appendChild(dots);
+            }
+
+            cell.dataset.date = iso;
+            daysNode.appendChild(cell);
+        }
+    }
+
+    function renderSelectedDay(isoDate, lang, eventMap, i18n) {
+        const label = document.getElementById('teacher-selected-day-label');
+        const list = document.getElementById('teacher-day-event-list');
+        const dayInput = document.getElementById('teacher-selected-day-input');
+        if (!label || !list || !dayInput) {
+            return;
+        }
+
+        dayInput.value = isoDate || '';
+        if (!isoDate) {
+            label.textContent = i18n.select_day_prompt;
+            list.innerHTML = `<p class="announcement-meta">${i18n.select_day_prompt}</p>`;
+            return;
+        }
+
+        const dayDate = new Date(`${isoDate}T00:00:00`);
+        const dayText = new Intl.DateTimeFormat(lang === 'tr' ? 'tr-TR' : 'en-US', {
+            day: '2-digit', month: 'long', year: 'numeric'
+        }).format(dayDate);
+        label.textContent = `${i18n.selected_day}: ${dayText}`;
+
+        const items = eventMap[isoDate] || [];
+        if (items.length === 0) {
+            list.innerHTML = `<p class="announcement-meta">${i18n.no_events_this_day}</p>`;
+            return;
+        }
+
+        list.innerHTML = items.map((ev) => {
+            const noteHtml = ev.note ? `<div class="announcement-meta">${ev.note}</div>` : '';
+            return `
+                <div class="event-item">
+                    <div class="event-head">
+                        <strong>${ev.title}</strong>
+                        <span class="chip-tag">${(ev.event_type || '').toUpperCase()}</span>
+                    </div>
+                    ${noteHtml}
+                    <form method="post" action="${i18n.dashboard_url}" class="event-delete-form">
+                        <input type="hidden" name="action" value="delete_calendar_event">
+                        <input type="hidden" name="event_id" value="${ev.id}">
+                        <button type="submit">${i18n.delete}</button>
+                    </form>
+                </div>
+            `;
+        }).join('');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const eventsJsonNode = document.getElementById('teacher-calendar-events-json');
+        const i18nJsonNode = document.getElementById('teacher-calendar-i18n-json');
+        let calendarEvents = [];
+        let calendarI18n = {
+            select_day_prompt: 'Select a day from the calendar.',
+            selected_day: 'Selected Day',
+            no_events_this_day: 'No events for this day.',
+            delete: 'Delete',
+            dashboard_url: '/teacher_dashboard'
+        };
+
+        if (eventsJsonNode && eventsJsonNode.textContent) {
+            try { calendarEvents = JSON.parse(eventsJsonNode.textContent); } catch (e) { calendarEvents = []; }
+        }
+        if (i18nJsonNode && i18nJsonNode.textContent) {
+            try { calendarI18n = JSON.parse(i18nJsonNode.textContent); } catch (e) {}
+        }
+
+        const lang = '{{ current_lang }}';
+        const eventMap = buildEventMap(calendarEvents);
+        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth();
+        let selectedDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+
+        const bindDayClicks = () => {
+            document.querySelectorAll('.day-cell[data-date]').forEach((cell) => {
+                cell.addEventListener('click', () => {
+                    selectedDate = cell.dataset.date || null;
+                    document.querySelectorAll('.day-cell.selected').forEach((node) => node.classList.remove('selected'));
+                    cell.classList.add('selected');
+                    renderSelectedDay(selectedDate, lang, eventMap, calendarI18n);
+                });
+            });
+        };
+
+        const syncSelectedCell = () => {
+            document.querySelectorAll('.day-cell.selected').forEach((node) => node.classList.remove('selected'));
+            if (!selectedDate) {
+                return;
+            }
+            const selectedNode = document.querySelector(`.day-cell[data-date="${selectedDate}"]`);
+            if (selectedNode) {
+                selectedNode.classList.add('selected');
+            }
+        };
+
+        renderCalendar(currentYear, currentMonth, lang, eventMap);
+        renderSelectedDay(selectedDate, lang, eventMap, calendarI18n);
+        bindDayClicks();
+        syncSelectedCell();
+
+        document.getElementById('cal-prev')?.addEventListener('click', () => {
+            currentMonth -= 1;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear -= 1;
+            }
+            renderCalendar(currentYear, currentMonth, lang, eventMap);
+            renderSelectedDay(selectedDate, lang, eventMap, calendarI18n);
+            bindDayClicks();
+            syncSelectedCell();
+        });
+
+        document.getElementById('cal-next')?.addEventListener('click', () => {
+            currentMonth += 1;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear += 1;
+            }
+            renderCalendar(currentYear, currentMonth, lang, eventMap);
+            renderSelectedDay(selectedDate, lang, eventMap, calendarI18n);
+            bindDayClicks();
+            syncSelectedCell();
+        });
+
+        document.getElementById('teacher-open-day-add')?.addEventListener('click', () => {
+            if (!selectedDate) {
+                return;
+            }
+            document.getElementById('teacher-day-add-form')?.classList.toggle('open');
+        });
+
+        const locBtn = document.getElementById('use-location-btn');
+        const locForm = document.getElementById('auto-weather-form');
+        const latInput = document.getElementById('auto-lat');
+        const lonInput = document.getElementById('auto-lon');
+
+        if (locBtn && locForm && latInput && lonInput && navigator.geolocation) {
+            locBtn.addEventListener('click', () => {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        latInput.value = String(pos.coords.latitude);
+                        lonInput.value = String(pos.coords.longitude);
+                        locForm.submit();
+                    },
+                    () => {},
+                    { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 }
+                );
+            });
+        }
+    });
+</script>
+
+{% endblock %}

@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-03-30T03:18:29.930071Z",
+  "total_requests": 2000,
+  "successful": 2000,
+  "failed": 0,
+  "success_rate_percent": 100.0,
+  "total_duration_seconds": 41.190714836120605,
+  "throughput_rps": 48.55463198337547,
+  "latency": {
+    "avg_ms": 2045.1742581129074,
+    "p50_ms": 2042.8848266601562,
+    "p95_ms": 2076.6055583953857,
+    "p99_ms": 2114.820957183838,
+    "max_ms": 2137.747049331665
+  }
+}

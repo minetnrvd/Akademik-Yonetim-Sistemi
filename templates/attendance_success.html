@@ -1,0 +1,18 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ t('attendance_successful') }}{% endblock %}
+
+{% block content %}
+<h1>{{ t('attendance_recorded') }}</h1>
+<p><strong>{{ t('class') }}:</strong> {{ cls.name }}</p>
+<p><strong>{{ t('week') }}:</strong> {{ active_session.week or '-' }}</p>
+<p><strong>{{ t('date') }}:</strong> {{ active_session.date.strftime('%d-%m-%Y %H:%M') }}</p>
+<p><span class="chip chip-good">{{ t('your_attendance_confirmed') }}</span></p>
+
+<a href="{{ url_for('student_dashboard') }}"><button>{{ t('return_to_student_dashboard') }}</button></a>
+{% endblock %}
+
+
+
+
+

@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<style>
+    .identity-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .identity-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .identity-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .identity-section {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .section-title {
+        margin: 0;
+        color: var(--moonbeam);
+        font-size: 18px;
+    }
+
+    .identity-item {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .passport-wrap {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.03);
+        overflow: hidden;
+    }
+
+    .passport-head {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        border: 0;
+        background: transparent;
+        padding: 12px;
+        cursor: pointer;
+        text-align: left;
+    }
+
+    .passport-main {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .passport-arrow {
+        width: 22px;
+        text-align: center;
+        font-weight: 700;
+        color: var(--moonbeam);
+        transition: transform 0.2s ease;
+    }
+
+    .passport-head.open .passport-arrow {
+        transform: rotate(90deg);
+    }
+
+    .passport-panel {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.28s ease;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .passport-panel.open {
+        max-height: 420px;
+    }
+
+    .passport-panel-inner {
+        padding: 10px;
+    }
+
+    .active-box {
+        width: 18px;
+        height: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        color: var(--moonbeam);
+    }
+
+    .active-box.checked::before {
+        content: "x";
+        line-height: 1;
+    }
+
+    .identity-label {
+        font-size: 12px;
+        color: var(--text-soft);
+        margin-bottom: 6px;
+    }
+
+    .identity-value {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--moonbeam);
+        word-break: break-word;
+    }
+
+    @media (max-width: 760px) {
+        .identity-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="identity-shell">
+    <div class="identity-top">
+        <h1>{{ title }}</h1>
+        <a href="{{ url_for('student_dashboard') }}"><button type="button">{{ t('back_to_home') }}</button></a>
+    </div>
+
+    <section class="identity-section">
+        <h2 class="section-title">{{ title }}</h2>
+        <div class="identity-grid">
+            {% for label, value in identity_details %}
+                <article class="identity-item">
+                    <div class="identity-label">{{ label }}</div>
+                    <div class="identity-value">{{ value }}</div>
+                </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="identity-section">
+        <h2 class="section-title">{{ citizenship_title }}</h2>
+        <div class="identity-grid">
+            {% for label, value in citizenship_details %}
+                <article class="identity-item">
+                    <div class="identity-label">{{ label }}</div>
+                    <div class="identity-value">{{ value }}</div>
+                </article>
+            {% endfor %}
+        </div>
+
+        <div class="passport-wrap">
+            <button type="button" class="passport-head" id="passport-toggle" aria-expanded="false" aria-controls="passport-panel">
+                <div class="passport-main">
+                    <div class="identity-label">{{ passport_title }}</div>
+                    <div class="identity-value">{{ passport_summary }}</div>
+                </div>
+                <span class="passport-arrow">&gt;</span>
+            </button>
+
+            <div class="passport-panel" id="passport-panel">
+                <div class="passport-panel-inner">
+                    <div class="identity-grid">
+                        {% for label, value in passport_details %}
+                            <article class="identity-item">
+                                <div class="identity-label">{{ label }}</div>
+                                {% if value is boolean %}
+                                    <div class="identity-value">
+                                        <span class="active-box {% if value %}checked{% endif %}"></span>
+                                    </div>
+                                {% else %}
+                                    <div class="identity-value">{{ value }}</div>
+                                {% endif %}
+                            </article>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="identity-section">
+        <h2 class="section-title">{{ other_title }}</h2>
+        <div class="identity-grid">
+            {% for label, value in other_details %}
+                <article class="identity-item">
+                    <div class="identity-label">{{ label }}</div>
+                    <div class="identity-value">{{ value }}</div>
+                </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="identity-section">
+        <h2 class="section-title">{{ working_title }}</h2>
+        <div class="identity-grid">
+            {% for label, value in working_details %}
+                <article class="identity-item">
+                    <div class="identity-label">{{ label }}</div>
+                    <div class="identity-value">{{ value }}</div>
+                </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    <p class="announcement-meta" style="margin-top:6px;">{{ t('student_affairs_edit_note') }}</p>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const toggle = document.getElementById('passport-toggle');
+        const panel = document.getElementById('passport-panel');
+        if (!toggle || !panel) {
+            return;
+        }
+
+        toggle.addEventListener('click', () => {
+            const isOpen = panel.classList.toggle('open');
+            toggle.classList.toggle('open', isOpen);
+            toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+    });
+</script>
+{% endblock %}

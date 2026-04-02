@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lang_text('Istek Metrikleri', 'Request Metrics') }}{% endblock %}
+
+{% block content %}
+<style>
+    .metrics-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .metrics-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .metrics-note {
+        color: var(--text-soft);
+        margin: 0;
+        font-size: 14px;
+    }
+
+    .metrics-cards {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .metrics-card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 10px;
+    }
+
+    .metrics-card .label {
+        color: var(--text-soft);
+        font-size: 12px;
+        margin-bottom: 4px;
+    }
+
+    .metrics-card .value {
+        color: var(--moonbeam);
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .metrics-filter {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .metrics-table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: auto;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .metrics-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 960px;
+    }
+
+    .metrics-table th,
+    .metrics-table td {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        text-align: left;
+        font-size: 13px;
+    }
+
+    .metrics-table th {
+        color: var(--moonbeam);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .metrics-table td {
+        color: var(--text-soft);
+        vertical-align: top;
+        word-break: break-word;
+    }
+
+    @media (max-width: 1024px) {
+        .metrics-cards {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        .metrics-cards {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="metrics-shell">
+    <div class="metrics-top">
+        <h1>{{ lang_text('Istek Metrikleri', 'Request Metrics') }}</h1>
+        <a href="{{ url_for('admin_dashboard') }}"><button type="button">{{ lang_text('Admin Paneline Don', 'Back to Admin Dashboard') }}</button></a>
+    </div>
+
+    <p class="metrics-note">{{ lang_text('Bellekte tutulan istek sayaclari ve gecikme dagilimi, baslangic', 'In-memory request counters and latency distribution since') }} {{ summary.since_utc }}.</p>
+
+    <div class="metrics-cards">
+        <article class="metrics-card">
+            <div class="label">{{ lang_text('Toplam Istek', 'Total Requests') }}</div>
+            <div class="value">{{ summary.total_requests }}</div>
+        </article>
+        <article class="metrics-card">
+            <div class="label">{{ lang_text('4xx Yanitlari', '4xx Responses') }}</div>
+            <div class="value">{{ summary.error_4xx }}</div>
+        </article>
+        <article class="metrics-card">
+            <div class="label">{{ lang_text('5xx Yanitlari', '5xx Responses') }}</div>
+            <div class="value">{{ summary.error_5xx }}</div>
+        </article>
+        <article class="metrics-card">
+            <div class="label">{{ lang_text('Izlenen Endpointler', 'Tracked Endpoints') }}</div>
+            <div class="value">{{ summary.endpoint_count }}</div>
+        </article>
+        <article class="metrics-card">
+            <div class="label">{{ lang_text('Yuklenen Satirlar', 'Loaded Rows') }}</div>
+            <div class="value">{{ endpoints|length }}</div>
+        </article>
+    </div>
+
+    <form method="get" class="metrics-filter">
+        <label for="limit">{{ lang_text('Satir Limiti', 'Row Limit') }}</label>
+        <input id="limit" type="number" name="limit" min="1" max="500" value="{{ limit }}">
+        <button type="submit">{{ lang_text('Uygula', 'Apply') }}</button>
+        <a href="{{ url_for('admin_request_metrics_report') }}"><button type="button">{{ lang_text('Temizle', 'Clear') }}</button></a>
+    </form>
+
+    <div class="metrics-table-wrap">
+        <table class="metrics-table">
+            <thead>
+                <tr>
+                    <th>{{ lang_text('Endpoint Anahtari', 'Endpoint Key') }}</th>
+                    <th>{{ lang_text('Sayi', 'Count') }}</th>
+                    <th>{{ lang_text('Ort. (ms)', 'Avg (ms)') }}</th>
+                    <th>{{ lang_text('Maks. (ms)', 'Max (ms)') }}</th>
+                    <th>{{ lang_text('Min. (ms)', 'Min (ms)') }}</th>
+                    <th>{{ lang_text('Son Durum', 'Last Status') }}</th>
+                    <th>{{ lang_text('Son Gorulme (UTC)', 'Last Seen (UTC)') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if endpoints %}
+                    {% for row in endpoints %}
+                        <tr>
+                            <td>{{ row.key }}</td>
+                            <td>{{ row.count }}</td>
+                            <td>{{ row.avg_ms }}</td>
+                            <td>{{ row.max_ms }}</td>
+                            <td>{{ row.min_ms }}</td>
+                            <td>{{ row.last_status }}</td>
+                            <td>{{ row.last_seen_utc }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7">{{ lang_text('Henuz istek metriği kaydi yok.', 'No request metrics recorded yet.') }}</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

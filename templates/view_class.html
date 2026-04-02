@@ -1,0 +1,48 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ t('class_details') }}{% endblock %}
+
+{% block content %}
+
+<h1>{{ cls.name }} - {{ t('class_details') }}</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>{{ t('student_name') }}</th>
+            <th>{{ t('attended_sessions') }}</th>
+            <th>{{ t('total_classes') }}</th>
+            <th>{{ t('absence_percent_label') }}</th>
+            <th>{{ t('status') }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if student_data %}
+            {% for s in student_data %}
+            <tr>
+                <td>{{ s.name }}</td>
+                <td>{{ s.attended }}</td>
+                <td>{{ s.total }}</td>
+                <td>{{ s.percentage|round(1) }}%</td>
+                <td>{{ s.status }}</td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="5">{{ t('no_students_found_class') }}</td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<br>
+
+<a href="{{ url_for('teacher_dashboard') }}">
+    <button>{{ t('back') }}</button>
+</a>
+
+{% endblock %}
+
+
+
+

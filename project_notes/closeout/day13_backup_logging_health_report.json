@@ -1,0 +1,49 @@
+{
+  "captured_at_utc": "2026-04-01T19:26:20Z",
+  "status": "approved",
+  "scope": "Day 13 - backup/restore, logging-monitoring review, general health control",
+  "checks": [
+    {
+      "name": "Backup drill created",
+      "passed": true,
+      "detail": {
+        "artifact": "backups/drill_20260401_222426"
+      }
+    },
+    {
+      "name": "Restore drill completed",
+      "passed": true,
+      "detail": {
+        "artifact": "restore_drill/drill_20260401_222426"
+      }
+    },
+    {
+      "name": "Backup/restore hash verification",
+      "passed": true,
+      "detail": {
+        "sha256": "069329497DA473E6797E826FFA5DA8C0F17A2DA351510BFB5E095BF036E6464B"
+      }
+    },
+    {
+      "name": "Alerting and dashboard validation",
+      "passed": true,
+      "detail": {
+        "artifact": "project_notes/closeout/day9_alerting_validation_2026-04-01T19-25-02Z.json",
+        "status": "approved",
+        "pass_rate": "5/5"
+      }
+    },
+    {
+      "name": "Post-go-live monitoring closeout",
+      "passed": true,
+      "detail": {
+        "artifact": "project_notes/closeout/post_go_live_closeout_2026-04-01T19-24-31Z.json",
+        "status": "closed"
+      }
+    }
+  ],
+  "notes": [
+    "Day9 validation script hardened for sequence drift safety by assigning explicit high IDs.",
+    "Operational evidence collected from live command outputs in this run."
+  ]
+}

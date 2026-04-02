@@ -1,0 +1,238 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ t('attendance_history') }}{% endblock %}
+
+{% block content %}
+
+<style>
+    .history-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .history-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .history-top h1 {
+        margin-bottom: 0;
+    }
+
+    .history-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(170px, 0.72fr);
+        gap: 12px;
+    }
+
+    .card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 14px;
+    }
+
+    .card h2 {
+        margin-top: 0;
+        margin-bottom: 10px;
+    }
+
+    .history-filters {
+        color-scheme: dark;
+    }
+
+    .history-filters input[type="date"] {
+        color-scheme: dark;
+        background: rgba(255, 255, 255, 0.07);
+        color: #f2f2f2;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .history-filters input[type="date"]::-webkit-calendar-picker-indicator {
+        filter: invert(1) brightness(0.9);
+        opacity: 0.9;
+        cursor: pointer;
+    }
+
+    .history-filters input[type="date"]::-webkit-date-and-time-value {
+        text-align: left;
+    }
+
+    .history-filters input[type="date"]::-webkit-inner-spin-button {
+        display: none;
+    }
+
+    .history-filters input[type="date"]::-webkit-datetime-edit,
+    .history-filters input[type="date"]::-webkit-datetime-edit-text,
+    .history-filters input[type="date"]::-webkit-datetime-edit-month-field,
+    .history-filters input[type="date"]::-webkit-datetime-edit-day-field,
+    .history-filters input[type="date"]::-webkit-datetime-edit-year-field {
+        color: #f2f2f2;
+    }
+
+    .history-filters input[type="date"]:focus {
+        border-color: rgba(117, 162, 235, 0.85);
+        box-shadow: 0 0 0 3px rgba(29, 79, 151, 0.26);
+    }
+
+    .clear-filter-btn {
+        min-width: 42px;
+        padding-left: 0;
+        padding-right: 0;
+        font-size: 20px;
+        line-height: 1;
+    }
+
+    .filter-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: nowrap;
+    }
+
+    .filter-actions a,
+    .filter-actions button {
+        white-space: nowrap;
+    }
+
+    .summary-card {
+        padding: 10px 12px;
+    }
+
+    .summary-card h2 {
+        font-size: 16px;
+        margin-bottom: 8px;
+    }
+
+    .summary-card p {
+        margin: 6px 0;
+        font-size: 14px;
+    }
+
+    .action-head {
+        width: 130px;
+    }
+
+    .action-cell {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .action-form {
+        margin: 0;
+    }
+
+    .action-btn {
+        width: 110px;
+    }
+
+    .table-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 14px;
+    }
+
+    .back-wrap {
+        max-width: 220px;
+    }
+
+    .back-wrap button {
+        width: 100%;
+    }
+
+    @media (max-width: 900px) {
+        .history-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .history-top {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+</style>
+
+<div class="history-shell">
+<div class="history-top">
+    <h1>{{ cls.name }} - {{ t('attendance_history') }}</h1>
+    <div class="back-wrap"><a href="{{ url_for('teacher_dashboard') }}"><button type="button">{{ t('back_to_dashboard') }}</button></a></div>
+</div>
+
+<div class="history-layout">
+    <section class="card">
+        <h2>{{ t('filters') }}</h2>
+        <form class="history-filters" method="get" action="{{ url_for('teacher_class_history', class_id=cls.id) }}" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:0;">
+            <input type="text" name="week" placeholder="{{ t('search_week') }}" value="{{ week_filter or '' }}">
+            <label>{{ t('start') }}:</label>
+            <input type="date" name="start" value="{{ start_date or '' }}">
+            <label>{{ t('end') }}:</label>
+            <input type="date" name="end" value="{{ end_date or '' }}">
+
+            <div class="filter-actions">
+                <button type="submit">{{ t('filter') }}</button>
+                {% if week_filter or start_date or end_date %}
+                <a href="{{ url_for('teacher_class_history', class_id=cls.id) }}" title="{{ t('clear_filters') }}">
+                    <button type="button" class="clear-filter-btn">×</button>
+                </a>
+                {% endif %}
+                <a href="{{ url_for('export_teacher_class_history', class_id=cls.id, week=week_filter, start=start_date, end=end_date) }}"><button type="button">{{ t('download_csv') }}</button></a>
+            </div>
+        </form>
+    </section>
+
+    <aside class="card summary-card">
+        <h2>{{ t('summary') }}</h2>
+        <p><strong>{{ t('total_sessions') }}:</strong> {{ sessions|length }}</p>
+        <p><strong>{{ t('class') }}:</strong> {{ cls.name }}</p>
+    </aside>
+</div>
+
+{% if sessions %}
+    <div class="table-card">
+    <table>
+        <thead>
+            <tr>
+                <th>{{ t('date') }}</th>
+                <th>{{ t('week') }}</th>
+                <th>{{ t('present') }}</th>
+                <th>{{ t('total') }}</th>
+                <th class="action-head">{{ t('detail') }}</th>
+                <th class="action-head">{{ t('delete') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sess in sessions %}
+            <tr>
+                <td>{{ sess.date.strftime('%d-%m-%Y %H:%M') }}</td>
+                <td>{{ sess.week or '-' }}</td>
+                <td>{{ sess.present_count }}</td>
+                <td>{{ sess.total_students }}</td>
+                <td class="action-cell">
+                    <a href="{{ url_for('session_detail', session_id=sess.id) }}"><button class="action-btn">{{ t('detail') }}</button></a>
+                </td>
+                <td class="action-cell">
+                    <form class="action-form" method="post" action="{{ url_for('delete_session', session_id=sess.id) }}" onsubmit="return confirm('{{ t('confirm_delete_attendance_session') }}');">
+                        <button class="action-btn" type="submit" style="background:rgba(29,79,151,0.34); border-color:rgba(216,183,90,0.5); color:#ecf3ff;">{{ t('delete') }}</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+{% else %}
+    <p>{{ t('no_recorded_attendance') }}</p>
+{% endif %}
+
+</div>
+
+{% endblock %}
+
+
+
+
+

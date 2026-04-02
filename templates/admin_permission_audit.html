@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lang_text('Yetki Red Raporu', 'Permission Audit') }}{% endblock %}
+
+{% block content %}
+<style>
+    .audit-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .audit-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .audit-note {
+        color: var(--text-soft);
+        margin: 0;
+        font-size: 14px;
+    }
+
+    .audit-filters {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .audit-filters input {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .audit-filters .filters-actions {
+        display: flex;
+        gap: 8px;
+        align-items: end;
+    }
+
+    .audit-filters .filters-actions a {
+        display: inline-flex;
+    }
+
+    .audit-table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: auto;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .audit-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 960px;
+    }
+
+    .audit-table th,
+    .audit-table td {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        text-align: left;
+        font-size: 13px;
+    }
+
+    .audit-table th {
+        color: var(--moonbeam);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .audit-table td {
+        color: var(--text-soft);
+        vertical-align: top;
+        word-break: break-word;
+    }
+
+    @media (max-width: 1024px) {
+        .audit-filters {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        .audit-filters {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="audit-shell">
+    <div class="audit-top">
+        <h1>{{ lang_text('Yetki Red Raporu', 'Permission Audit Report') }}</h1>
+        <a href="{{ url_for('admin_dashboard') }}"><button type="button">← {{ lang_text('Admin Paneli', 'Admin Dashboard') }}</button></a>
+    </div>
+
+    <p class="audit-note">{{ ('Son ' ~ limit ~ ' yetki red olayı gösteriliyor. Kaynak: ' ~ source ~ '.') if current_lang == 'tr' else ('Showing the latest ' ~ limit ~ ' denied-permission events from ' ~ source ~ '.') }}</p>
+
+    <form method="get" class="audit-filters">
+        <input type="text" name="role" placeholder="{{ lang_text('Rol', 'Role') }}" value="{{ filters.role }}">
+        <input type="text" name="endpoint" placeholder="Endpoint" value="{{ filters.endpoint }}">
+        <input type="text" name="permission" placeholder="{{ lang_text('Yetki', 'Permission') }}" value="{{ filters.permission }}">
+        <input type="text" name="from" placeholder="{{ lang_text('Başlangıç (YYYY-AA-GG)', 'From (YYYY-MM-DD)') }}" value="{{ filters.from }}">
+        <input type="text" name="to" placeholder="{{ lang_text('Bitiş (YYYY-AA-GG)', 'To (YYYY-MM-DD)') }}" value="{{ filters.to }}">
+        <div class="filters-actions">
+            <input type="number" name="limit" min="1" max="500" value="{{ limit }}">
+            <button type="submit">{{ lang_text('Uygula', 'Apply') }}</button>
+            <a href="{{ url_for('admin_permission_audit_report') }}"><button type="button">{{ lang_text('Temizle', 'Clear') }}</button></a>
+        </div>
+    </form>
+
+    <div class="audit-table-wrap">
+        <table class="audit-table">
+            <thead>
+                <tr>
+                    <th>{{ lang_text('Zaman Damgası (UTC)', 'Timestamp (UTC)') }}</th>
+                    <th>{{ lang_text('Kullanıcı ID', 'User ID') }}</th>
+                    <th>{{ lang_text('Rol', 'Role') }}</th>
+                    <th>{{ lang_text('Endpoint', 'Endpoint') }}</th>
+                    <th>{{ lang_text('Yetki', 'Permission') }}</th>
+                    <th>{{ lang_text('Metot', 'Method') }}</th>
+                    <th>{{ lang_text('Yol', 'Path') }}</th>
+                    <th>IP</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if events %}
+                    {% for event in events %}
+                        <tr>
+                            <td>{{ event.timestamp }}</td>
+                            <td>{{ event.user_id }}</td>
+                            <td>{{ event.role }}</td>
+                            <td>{{ event.endpoint }}</td>
+                            <td>{{ event.permission }}</td>
+                            <td>{{ event.method }}</td>
+                            <td>{{ event.path }}</td>
+                            <td>{{ event.ip }}</td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8">{{ lang_text('Henüz yetki red olayı kaydedilmemiş.', 'No denied-permission event has been recorded yet.') }}</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

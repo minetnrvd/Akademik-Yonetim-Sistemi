@@ -1,0 +1,58 @@
+{
+  "captured_at_utc": "2026-04-01T19:34:09.449443Z",
+  "passed": 10,
+  "total": 10,
+  "pass_rate_pct": 100.0,
+  "results": [
+    {
+      "name": "Health endpoint responds with snapshot",
+      "passed": true,
+      "details": "status_code=200, keys=['database_error', 'database_ok', 'generated_at_utc', 'latency_ms', 'reasons']"
+    },
+    {
+      "name": "Login page is reachable",
+      "passed": true,
+      "details": "status_code=200"
+    },
+    {
+      "name": "Admin can open user inventory",
+      "passed": true,
+      "details": "status_code=200"
+    },
+    {
+      "name": "Admin can open request metrics page",
+      "passed": true,
+      "details": "status_code=200"
+    },
+    {
+      "name": "Admin assignment form contains CSRF token field",
+      "passed": true,
+      "details": "status_code=200, csrf_field=True"
+    },
+    {
+      "name": "Teacher can open dashboard",
+      "passed": true,
+      "details": "status_code=200"
+    },
+    {
+      "name": "Teacher is blocked from admin inventory",
+      "passed": true,
+      "details": "status_code=302"
+    },
+    {
+      "name": "Teacher dashboard average latency within threshold",
+      "passed": true,
+      "details": "avg_ms=3.88, threshold_ms=8.0"
+    },
+    {
+      "name": "Student can open dashboard",
+      "passed": true,
+      "details": "status_code=200"
+    },
+    {
+      "name": "Student is blocked from teacher dashboard",
+      "passed": true,
+      "details": "status_code=302"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-03-30T03:12:42.245748Z",
+  "base_url": "http://localhost:5000",
+  "test_type": "Single-client sequential + Load test",
+  "endpoints": [
+    {
+      "endpoint": "health check",
+      "url": "http://localhost:5000/health",
+      "iterations": 50,
+      "successful": 50,
+      "failed": 0,
+      "avg_ms": 2042.6648235321045,
+      "median_ms": 2038.3563041687012,
+      "p95_ms": 2064.55135345459,
+      "p99_ms": 2091.2563800811768,
+      "min_ms": 2013.5197639465332,
+      "max_ms": 2091.2563800811768,
+      "stdev_ms": 16.166960519827782
+    },
+    {
+      "endpoint": "Ana sayfa/Dashboard",
+      "url": "http://localhost:5000/",
+      "iterations": 50,
+      "successful": 50,
+      "failed": 50,
+      "avg_ms": 2043.9782762527466,
+      "median_ms": 2042.9713726043701,
+      "p95_ms": 2072.2429752349854,
+      "p99_ms": 2081.645727157593,
+      "min_ms": 2014.9192810058594,
+      "max_ms": 2081.645727157593,
+      "stdev_ms": 14.865561006277254
+    },
+    {
+      "endpoint": "Login formu",
+      "url": "http://localhost:5000/login",
+      "iterations": 50,
+      "successful": 50,
+      "failed": 0,
+      "avg_ms": 2042.3559474945068,
+      "median_ms": 2041.879653930664,
+      "p95_ms": 2066.4615631103516,
+      "p99_ms": 2084.794759750366,
+      "min_ms": 2020.857572555542,
+      "max_ms": 2084.794759750366,
+      "stdev_ms": 13.423082512830302
+    }
+  ],
+  "aggregate": {
+    "total_requests": 150,
+    "avg_ms": 2042.9996824264526,
+    "p50_ms": 2042.6648235321045,
+    "p95_ms": 2043.9782762527466,
+    "p99_ms": 2043.9782762527466,
+    "max_ms": 2043.9782762527466
+  }
+}

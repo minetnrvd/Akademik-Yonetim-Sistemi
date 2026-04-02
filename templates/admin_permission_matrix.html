@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lang_text('İzin Matrisi', 'Permission Matrix') }}{% endblock %}
+
+{% block content %}
+<style>
+    .matrix-shell { display: flex; flex-direction: column; gap: 20px; }
+
+    .matrix-topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .matrix-topbar h1 { margin: 0; color: var(--moonbeam); }
+
+    /* role summary chips */
+    .role-chips {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .role-chip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255,255,255,0.04);
+    }
+    .role-chip-name {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--moonbeam);
+        text-transform: capitalize;
+    }
+    .role-chip-count {
+        font-size: 12px;
+        color: var(--text-soft);
+    }
+    .role-chip.admin-chip { border-color: rgba(93,147,220,0.45); }
+    .role-chip.teacher-chip { border-color: rgba(42,157,92,0.45); }
+    .role-chip.student-chip { border-color: rgba(200,130,42,0.45); }
+
+    /* section header */
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+    .section-header h2 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text-soft);
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        white-space: nowrap;
+    }
+    .section-divider { flex: 1; height: 1px; background: var(--line); }
+
+    /* matrix table */
+    .matrix-wrap {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        overflow-x: auto;
+        background: rgba(255,255,255,0.02);
+    }
+    .matrix-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 600px;
+    }
+    .matrix-table th {
+        padding: 10px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--text-soft);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255,255,255,0.02);
+        white-space: nowrap;
+    }
+    .matrix-table th:first-child { text-align: left; min-width: 250px; }
+    .matrix-table th:not(:first-child) { text-align: center; min-width: 90px; }
+    .matrix-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        font-size: 13px;
+    }
+    .matrix-table td:first-child { color: var(--text-soft); }
+    .matrix-table td:not(:first-child) { text-align: center; }
+    .matrix-table tr:last-child td { border-bottom: none; }
+    .matrix-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+    /* category label row */
+    .category-row td {
+        padding: 6px 12px 4px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--gold);
+        text-transform: uppercase;
+        letter-spacing: 0.7px;
+        background: rgba(216,183,90,0.07);
+        border-bottom: 1px solid rgba(216,183,90,0.15) !important;
+    }
+
+    .tick { color: #7de8a0; font-size: 16px; }
+    .cross { color: rgba(255,255,255,0.18); font-size: 15px; }
+
+    /* endpoint table */
+    .endpoint-wrap {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        overflow-x: auto;
+        background: rgba(255,255,255,0.02);
+    }
+    .endpoint-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 480px;
+    }
+    .endpoint-table th {
+        padding: 10px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--text-soft);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        background: rgba(255,255,255,0.02);
+    }
+    .endpoint-table td {
+        padding: 8px 12px;
+        font-size: 12px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        color: var(--text-soft);
+        font-family: monospace;
+    }
+    .endpoint-table tr:last-child td { border-bottom: none; }
+    .endpoint-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+</style>
+
+<div class="matrix-shell">
+
+    <div class="matrix-topbar">
+        <h1>{{ lang_text('İzin Matrisi', 'Permission Matrix') }}</h1>
+        <a href="{{ url_for('admin_dashboard') }}"><button type="button">← {{ lang_text('Admin Paneli', 'Dashboard') }}</button></a>
+    </div>
+
+    <!-- Role summary chips -->
+    <div class="role-chips">
+        {% for row in rows %}
+            <div class="role-chip {{ row.role }}-chip">
+                <span class="role-chip-name">{{ row.role }}</span>
+                <span class="role-chip-count">{{ row.permission_count }} {{ lang_text('izin', 'permissions') }}</span>
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Permission matrix -->
+    <div>
+        <div class="section-header">
+            <h2>{{ lang_text('Rol-İzin Tablosu', 'Role-Permission Table') }}</h2>
+            <div class="section-divider"></div>
+        </div>
+        <div class="matrix-wrap">
+            <table class="matrix-table">
+                <thead>
+                    <tr>
+                        <th>{{ lang_text('İzin', 'Permission') }}</th>
+                        {% for row in rows %}
+                            <th>{{ row.role }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set ns = namespace(last_prefix='') %}
+                    {% for permission in permissions %}
+                        {% set prefix = permission.split('.')[0] %}
+                        {% if prefix != ns.last_prefix %}
+                            {% set ns.last_prefix = prefix %}
+                            <tr class="category-row">
+                                <td colspan="{{ rows|length + 1 }}">{{ prefix | upper }}</td>
+                            </tr>
+                        {% endif %}
+                        <tr>
+                            <td>{{ permission }}</td>
+                            {% for row in rows %}
+                                {% set cell = (row.permissions | selectattr('name', 'equalto', permission) | list | first) %}
+                                <td>
+                                    {% if cell and cell.enabled %}
+                                        <span class="tick">✓</span>
+                                    {% else %}
+                                        <span class="cross">—</span>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Endpoint map -->
+    <div>
+        <div class="section-header">
+            <h2>{{ lang_text('Endpoint -> Izin Eslesmesi', 'Endpoint -> Permission Mapping') }}</h2>
+            <div class="section-divider"></div>
+        </div>
+        <div class="endpoint-wrap">
+            <table class="endpoint-table">
+                <thead>
+                    <tr>
+                        <th>{{ lang_text('Endpoint', 'Endpoint') }}</th>
+                        <th>{{ lang_text('Gerekli İzin', 'Required Permission') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for endpoint, permission in endpoint_map %}
+                        <tr>
+                            <td>{{ endpoint }}</td>
+                            <td>{{ permission }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+

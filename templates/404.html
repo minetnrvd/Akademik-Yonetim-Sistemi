@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('page_not_found') }}{% endblock %}
+
+{% block content %}
+<h1>{{ t('page_not_found_404') }}</h1>
+<p>{{ t('requested_page_not_found') }}</p>
+<p>{{ t('check_url_or_dashboard') }}</p>
+<p style="margin-top:6px;">If you opened an old bookmark or copied link, return to your dashboard and continue from menu links.</p>
+
+<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
+    {% if session.get('role') == 'teacher' %}
+        <a href="{{ url_for('teacher_dashboard') }}"><button type="button">{{ t('teacher_dashboard') }}</button></a>
+    {% elif session.get('role') == 'student' %}
+        <a href="{{ url_for('student_dashboard') }}"><button type="button">{{ t('student_home') }}</button></a>
+    {% else %}
+        <a href="{{ url_for('login') }}"><button type="button">{{ t('go_to_login') }}</button></a>
+    {% endif %}
+</div>
+{% endblock %}

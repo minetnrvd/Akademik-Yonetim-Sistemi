@@ -1,0 +1,446 @@
+﻿<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ t('site_title') }}{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg: #0b1320;
+            --bg-soft: #111f33;
+            --surface: rgba(15, 28, 46, 0.78);
+            --surface-strong: rgba(10, 20, 35, 0.92);
+            --text: #e8edf4;
+            --text-soft: #c7ced9;
+            --line: rgba(217, 217, 217, 0.18);
+            --accent: #1d4f97;
+            --accent-soft: rgba(29, 79, 151, 0.22);
+            --gold: #d8b75a;
+            --moonbeam: #ece4c6;
+            --silver: #d9d9d9;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Manrope', 'Segoe UI', sans-serif;
+            margin: 0;
+            color: var(--text);
+            background:
+                radial-gradient(900px 500px at 8% 8%, rgba(29, 79, 151, 0.24), transparent 60%),
+                radial-gradient(700px 460px at 94% 10%, rgba(216, 183, 90, 0.12), transparent 62%),
+                linear-gradient(155deg, #08111d 0%, #0f1d31 55%, #0b1627 100%);
+            min-height: 100vh;
+            padding: 22px;
+                animation: pageIn 0.45s ease-out;
+        }
+
+        .skip-link {
+            position: absolute;
+            left: 12px;
+            top: -48px;
+            background: #f4f7ff;
+            color: #102039;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-weight: 700;
+            z-index: 1000;
+            transition: top 0.2s ease;
+        }
+
+        .skip-link:focus {
+            top: 12px;
+            text-decoration: none;
+        }
+
+        .container {
+            width: min(96vw, 1400px);
+            margin: 0 auto;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 26px;
+            padding: 28px;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 28px 48px rgba(0, 0, 0, 0.38);
+            transition: transform 0.24s ease, box-shadow 0.24s ease;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 10px;
+        }
+
+        .lang-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 8px 10px;
+        }
+
+        .lang-box label {
+            font-size: 12px;
+            margin: 0;
+            color: var(--text-soft);
+            font-weight: 700;
+        }
+
+        .lang-box form {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .lang-box select {
+            min-width: 92px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 13px;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Sora', 'Segoe UI', sans-serif;
+            letter-spacing: 0.2px;
+            margin-top: 0;
+        }
+
+        h1 {
+            font-size: 30px;
+            margin-bottom: 16px;
+        }
+
+        h2 {
+            margin: 20px 0 10px;
+            font-size: 20px;
+            color: var(--moonbeam);
+        }
+
+        p, label, li {
+            color: var(--text-soft);
+        }
+
+        a {
+            color: #a8c7ff;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .alert {
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            border-radius: 16px;
+            font-size: 14px;
+            border: 1px solid transparent;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .success {
+            background: rgba(43, 97, 65, 0.34);
+            border-color: rgba(85, 182, 120, 0.5);
+            color: #d0f5dd;
+        }
+
+        .danger {
+            background: rgba(35, 53, 87, 0.36);
+            border-color: rgba(104, 134, 189, 0.5);
+            color: #d6e4ff;
+        }
+
+        .warning {
+            background: rgba(116, 96, 38, 0.24);
+            border-color: rgba(216, 183, 90, 0.48);
+            color: #f6ebc8;
+        }
+
+        .info {
+            background: rgba(85, 89, 104, 0.33);
+            border-color: rgba(172, 178, 201, 0.42);
+            color: #e2e5f7;
+        }
+
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input, select, textarea {
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.07);
+            color: var(--text);
+            outline: none;
+            font-family: 'Manrope', 'Segoe UI', sans-serif;
+        }
+
+        textarea {
+            border-radius: 18px;
+        }
+
+        select option {
+            background: #12233a;
+            color: var(--text);
+        }
+
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        textarea:-webkit-autofill,
+        textarea:-webkit-autofill:hover,
+        textarea:-webkit-autofill:focus,
+        select:-webkit-autofill,
+        select:-webkit-autofill:hover,
+        select:-webkit-autofill:focus {
+            -webkit-text-fill-color: var(--text);
+            transition: background-color 9999s ease-in-out 0s;
+            -webkit-box-shadow: 0 0 0 1000px rgba(255, 255, 255, 0.07) inset;
+            caret-color: var(--text);
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.48);
+        }
+
+        input[type="date"] {
+            color-scheme: dark;
+            background: rgba(255, 255, 255, 0.07);
+            color: var(--text);
+            border: 1px solid var(--line);
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1) brightness(0.9);
+            opacity: 0.9;
+            cursor: pointer;
+        }
+
+        input[type="date"]::-webkit-datetime-edit,
+        input[type="date"]::-webkit-datetime-edit-text,
+        input[type="date"]::-webkit-datetime-edit-month-field,
+        input[type="date"]::-webkit-datetime-edit-day-field,
+        input[type="date"]::-webkit-datetime-edit-year-field {
+            color: var(--text);
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: rgba(117, 162, 235, 0.85);
+            box-shadow: 0 0 0 3px rgba(29, 79, 151, 0.26);
+        }
+
+        a:focus-visible,
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 2px solid var(--gold);
+            outline-offset: 2px;
+        }
+
+        button {
+            border-radius: 999px;
+            border: 1px solid rgba(128, 170, 241, 0.52);
+            background: linear-gradient(145deg, rgba(29, 79, 151, 0.48), rgba(14, 37, 72, 0.5));
+            color: #ecf3ff;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-family: 'Manrope', 'Segoe UI', sans-serif;
+            font-weight: 600;
+            backdrop-filter: blur(5px);
+            transition: transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            border-color: rgba(216, 183, 90, 0.66);
+            background: linear-gradient(145deg, rgba(42, 99, 181, 0.56), rgba(21, 52, 98, 0.56));
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid var(--line);
+            margin: 16px 0;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            overflow: hidden;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        th, td {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background-color: rgba(29, 79, 151, 0.2);
+            color: #ebf2ff;
+            font-weight: 600;
+        }
+
+        tr:nth-child(even) td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .soft-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            padding: 14px;
+            transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+        }
+
+        .soft-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.22);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .chip {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+        }
+
+        .chip-good {
+            background: rgba(210, 210, 210, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            color: #f2f2f2;
+        }
+
+        .chip-bad {
+            background: rgba(216, 183, 90, 0.2);
+            border: 1px solid rgba(216, 183, 90, 0.5);
+            color: #f6ebc8;
+        }
+
+        @keyframes pageIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                width: 100%;
+                padding: 16px;
+                border-radius: 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            button, input, select {
+                width: 100%;
+            }
+
+            table {
+                font-size: 13px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation: none !important;
+                transition: none !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<a class="skip-link" href="#main-content">{{ t('skip_to_content') }}</a>
+
+<div class="container">
+
+    <div class="topbar">
+        <div class="lang-box">
+            <label for="lang-select">{{ t('language') }}</label>
+            <form method="post" action="{{ url_for('set_language') }}">
+                <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+                <select id="lang-select" name="lang" onchange="this.form.submit()">
+                    <option value="en" {% if current_lang == 'en' %}selected{% endif %}>{{ t('english') }}</option>
+                    <option value="tr" {% if current_lang == 'tr' %}selected{% endif %}>{{ t('turkish') }}</option>
+                </select>
+            </form>
+        </div>
+    </div>
+
+    <!-- FLASH MESSAGES -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <section aria-live="polite" aria-atomic="true">
+            {% for category, message in messages %}
+                <div class="alert {{ category }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+            </section>
+        {% endif %}
+    {% endwith %}
+
+    <main id="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+</div>
+
+<!-- Auto close in 3 seconds -->
+<script>
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        setTimeout(function() {
+            let alerts = document.querySelectorAll('.alert');
+            alerts.forEach(function(alert) {
+                alert.style.display = 'none';
+            });
+        }, 3000);
+    }
+</script>
+
+</body>
+</html>
+
+
+
+

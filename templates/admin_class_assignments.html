@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lang_text('Ders-Öğretmen Ataması', 'Class Teacher Assignment') }}{% endblock %}
+
+{% block content %}
+<style>
+    .assign-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .assign-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .assign-note {
+        color: var(--text-soft);
+        margin: 0;
+        font-size: 14px;
+    }
+
+    .assign-filters {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .assign-filters input {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .assign-filters .actions {
+        display: flex;
+        gap: 8px;
+        align-items: end;
+    }
+
+    .assign-cards {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .assign-card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 10px;
+    }
+
+    .assign-card .label {
+        color: var(--text-soft);
+        font-size: 12px;
+        margin-bottom: 4px;
+    }
+
+    .assign-card .value {
+        color: var(--moonbeam);
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .assign-table-wrap {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        overflow: auto;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .assign-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 980px;
+    }
+
+    .assign-table th,
+    .assign-table td {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        text-align: left;
+        font-size: 13px;
+    }
+
+    .assign-table th {
+        color: var(--moonbeam);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .assign-table td {
+        color: var(--text-soft);
+        vertical-align: top;
+        word-break: break-word;
+    }
+
+    .assign-form {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .teacher-locked {
+        color: #ff9f9f;
+    }
+
+    @media (max-width: 1024px) {
+        .assign-filters,
+        .assign-cards {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 640px) {
+        .assign-filters,
+        .assign-cards {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="assign-shell">
+    <div class="assign-top">
+        <h1>{{ lang_text('Ders-Öğretmen Ataması', 'Class Teacher Assignment') }}</h1>
+        <a href="{{ url_for('admin_dashboard') }}"><button type="button">{{ lang_text('← Admin Paneli', 'Back to Admin Dashboard') }}</button></a>
+    </div>
+
+    <p class="assign-note">{{ lang_text('Dersleri aktif öğretmen hesaplarına atayın.', 'Assign classes to active teacher accounts.') }}</p>
+
+    <form method="get" class="assign-filters">
+        <input type="text" name="q" value="{{ filters.q }}" placeholder="{{ lang_text('Ders adı ara', 'Search class name') }}">
+        <input type="number" name="limit" min="1" max="1000" value="{{ filters.limit }}">
+        <div class="actions">
+            <button type="submit">{{ lang_text('Uygula', 'Apply') }}</button>
+            <a href="{{ url_for('admin_class_assignments') }}"><button type="button">{{ lang_text('Temizle', 'Clear') }}</button></a>
+        </div>
+    </form>
+
+    <div class="assign-cards">
+        <article class="assign-card">
+            <div class="label">{{ lang_text('Yüklenen Dersler', 'Loaded Classes') }}</div>
+            <div class="value">{{ summary.total_loaded_classes }}</div>
+        </article>
+        <article class="assign-card">
+            <div class="label">{{ lang_text('Öğretmen Hesapları', 'Teacher Accounts') }}</div>
+            <div class="value">{{ summary.total_teachers }}</div>
+        </article>
+        <article class="assign-card">
+            <div class="label">{{ lang_text('Aktif Öğretmenler', 'Active Teachers') }}</div>
+            <div class="value">{{ summary.active_teachers }}</div>
+        </article>
+        <article class="assign-card">
+            <div class="label">{{ lang_text('Kilitli Öğretmenler', 'Locked Teachers') }}</div>
+            <div class="value">{{ summary.locked_teachers }}</div>
+        </article>
+    </div>
+
+    <div class="assign-table-wrap">
+        <table class="assign-table">
+            <thead>
+                <tr>
+                    <th>{{ lang_text('Ders ID', 'Class ID') }}</th>
+                    <th>{{ lang_text('Ders Adı', 'Class Name') }}</th>
+                    <th>{{ lang_text('Mevcut Öğretmen', 'Current Teacher') }}</th>
+                    <th>{{ lang_text('Öğretmen E-postası', 'Teacher Email') }}</th>
+                    <th>{{ lang_text('Yeniden Ata', 'Reassign') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if classes %}
+                    {% for class_row in classes %}
+                        <tr>
+                            <td>{{ class_row.id }}</td>
+                            <td>{{ class_row.name }}</td>
+                            <td>{{ class_row.teacher_name }}</td>
+                            <td>{{ class_row.teacher_email }}</td>
+                            <td>
+                                <form method="post" action="{{ url_for('admin_assign_class_teacher', class_id=class_row.id) }}" class="assign-form">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <select name="teacher_id">
+                                        {% for teacher in teachers %}
+                                            <option value="{{ teacher.id }}" {% if teacher.id == class_row.teacher_id %}selected{% endif %} {% if teacher.is_locked %}disabled{% endif %}>
+                                                {{ teacher.name }} ({{ teacher.email }}){% if teacher.is_locked %} - {{ lang_text('kilitli', 'locked') }}{% endif %}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="submit">{{ lang_text('Ata', 'Assign') }}</button>
+                                </form>
+                                <small class="teacher-locked">{{ lang_text('Kilitli öğretmenler atama listesinde pasiftir.', 'Locked teachers are disabled in the assignment list.') }}</small>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5">{{ lang_text('Mevcut filtre için ders bulunamadı.', 'No class found for current filter.') }}</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

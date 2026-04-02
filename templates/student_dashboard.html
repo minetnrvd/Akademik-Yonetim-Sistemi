@@ -1,0 +1,776 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('student_home') }}{% endblock %}
+
+{% block content %}
+<style>
+    .home-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .home-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .home-top h1 {
+        margin: 0;
+    }
+
+    .home-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .summary-card {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    .summary-label {
+        color: var(--text-soft);
+        font-size: 12px;
+    }
+
+    .summary-value {
+        margin-top: 4px;
+        color: var(--moonbeam);
+        font-size: 22px;
+        font-weight: 700;
+    }
+
+    .home-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.75fr);
+        gap: 12px;
+        align-items: start;
+    }
+
+    .main-column {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .side-column {
+        position: sticky;
+        top: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .top-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .top-card,
+    .weather-card,
+    .calendar-card {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    .card-title {
+        margin: 0 0 10px;
+        color: var(--moonbeam);
+        font-size: 18px;
+    }
+
+    .announcement-list,
+    .event-list {
+        margin: 0;
+        padding-left: 18px;
+        display: grid;
+        gap: 8px;
+    }
+
+    .announcement-meta,
+    .event-meta {
+        font-size: 12px;
+        color: var(--text-soft);
+    }
+
+    .calendar-shell {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .calendar-form {
+        display: grid;
+        gap: 8px;
+    }
+
+    .calendar-form input,
+    .calendar-form select,
+    .calendar-form textarea {
+        width: 100%;
+    }
+
+    .event-item {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.03);
+        list-style: none;
+    }
+
+    .event-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .chip-tag {
+        border: 1px solid rgba(216, 183, 90, 0.5);
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 11px;
+        color: #f6ebc8;
+    }
+
+    .event-delete-form {
+        margin-top: 8px;
+    }
+
+    .calendar-view {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 10px;
+    }
+
+    .calendar-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .calendar-toolbar h4 {
+        margin: 0;
+        color: var(--moonbeam);
+        font-size: 15px;
+    }
+
+    .calendar-weekdays,
+    .calendar-days {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    .calendar-weekdays span {
+        text-align: center;
+        font-size: 11px;
+        color: var(--text-soft);
+        font-weight: 700;
+        padding: 4px 0;
+    }
+
+    .day-cell {
+        min-height: 68px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 6px;
+        font-size: 12px;
+        background: rgba(255, 255, 255, 0.02);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        position: relative;
+        cursor: pointer;
+        transition: border-color 0.16s ease, background-color 0.16s ease;
+    }
+
+    .day-cell.muted {
+        opacity: 0.35;
+    }
+
+    .day-cell.today {
+        border-color: rgba(216, 183, 90, 0.7);
+        box-shadow: 0 0 0 1px rgba(216, 183, 90, 0.25) inset;
+    }
+
+    .day-cell.selected {
+        border-color: rgba(143, 184, 255, 0.85);
+        background: rgba(61, 106, 176, 0.2);
+    }
+
+    .day-num {
+        font-weight: 700;
+    }
+
+    .day-dots {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .dot.exam {
+        background: #d8b75a;
+    }
+
+    .dot.activity {
+        background: #8fb8ff;
+    }
+
+    .today-badge {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        font-size: 10px;
+        border: 1px solid rgba(216, 183, 90, 0.6);
+        border-radius: 999px;
+        padding: 0 5px;
+        color: #f6ebc8;
+        background: rgba(216, 183, 90, 0.14);
+    }
+
+    .day-editor {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 10px;
+    }
+
+    .day-editor-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+    }
+
+    .day-editor-title {
+        margin: 0;
+        color: var(--moonbeam);
+    }
+
+    .plus-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        padding: 0;
+        font-size: 21px;
+        line-height: 1;
+    }
+
+    .day-add-form {
+        display: none;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .day-add-form.open {
+        display: grid;
+    }
+
+    .weather-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 10px;
+    }
+
+    .weather-stat {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .portal-card {
+        display: block;
+        text-decoration: none;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+        background: rgba(255, 255, 255, 0.04);
+        transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+    }
+
+    .portal-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(216, 183, 90, 0.5);
+        background: rgba(255, 255, 255, 0.06);
+        text-decoration: none;
+    }
+
+    .portal-card h3 {
+        margin: 0 0 8px;
+        color: var(--moonbeam);
+        font-size: 18px;
+    }
+
+    .portal-card p {
+        margin: 0;
+        color: var(--text-soft);
+        font-size: 14px;
+    }
+
+    .sidebar-title {
+        margin: 0;
+        color: var(--moonbeam);
+        font-size: 16px;
+    }
+
+    .home-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    @media (max-width: 900px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .home-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .side-column {
+            position: static;
+        }
+
+        .top-grid,
+        .calendar-shell {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="home-shell">
+    <div class="home-top">
+        <div>
+            <h1>{{ t('student_home') }}</h1>
+            <p>{{ t('welcome_user_continue', name=user_name) }}</p>
+        </div>
+        <div class="home-actions">
+            <a href="{{ url_for('reports') }}"><button type="button">{{ lang_text('Raporlar', 'Reports') }}</button></a>
+            <a href="{{ url_for('student_account') }}"><button type="button">{{ t('my_account') }}</button></a>
+            <a href="{{ url_for('logout') }}"><button type="button">{{ t('logout') }}</button></a>
+        </div>
+    </div>
+
+    <section class="summary-grid">
+        <article class="summary-card"><div class="summary-label">{{ lang_text('Katildigim Dersler', 'Joined Classes') }}</div><div class="summary-value">{{ dashboard_summary.joined_class_count }}</div></article>
+        <article class="summary-card"><div class="summary-label">{{ lang_text('Yaklasan Etkinlikler', 'Upcoming Events') }}</div><div class="summary-value">{{ dashboard_summary.upcoming_events_count }}</div></article>
+        <article class="summary-card"><div class="summary-label">{{ lang_text('Duyurular', 'Announcements') }}</div><div class="summary-value">{{ dashboard_summary.announcement_count }}</div></article>
+        <article class="summary-card"><div class="summary-label">{{ lang_text('Takvim Ogeleri', 'Calendar Items') }}</div><div class="summary-value">{{ dashboard_summary.calendar_total_count }}</div></article>
+    </section>
+
+    <div class="home-layout">
+        <div class="main-column">
+            <section class="top-grid">
+                <article class="top-card">
+                    <h2 class="card-title">{{ t('announcements') }}</h2>
+                    {% if announcements %}
+                        <ul class="announcement-list">
+                            {% for ann in announcements %}
+                                <li>
+                                    <strong>{{ ann.title }}</strong><br>
+                                    {{ ann.body }}
+                                    <div class="announcement-meta">
+                                        {{ ann.created_at.strftime('%d-%m-%Y %H:%M') }}
+                                        {% if ann.course %} · {{ ann.course.code }} - {{ ann.course.title }}{% endif %}
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p>{{ t('no_announcements') }}</p>
+                    {% endif %}
+                </article>
+
+                <article class="weather-card">
+                    <h2 class="card-title">{{ t('weather') }}</h2>
+                    <div id="weather-location-flag" data-using-location="{{ '1' if weather_using_location else '0' }}" style="display:none;"></div>
+                    <form id="auto-weather-form" method="get" action="{{ url_for('student_dashboard') }}" style="display:none;">
+                        <input type="hidden" id="auto-lat" name="lat">
+                        <input type="hidden" id="auto-lon" name="lon">
+                    </form>
+
+                    <form method="get" action="{{ url_for('student_dashboard') }}" style="display:flex; gap:8px; align-items:center;">
+                        <input type="text" name="city" value="{{ weather.city if weather else 'Istanbul' }}" placeholder="{{ t('enter_city') }}" required>
+                        <button type="submit">{{ t('update') }}</button>
+                    </form>
+                    <button id="use-location-btn" type="button" style="margin-top:8px;">{{ t('use_current_location') }}</button>
+                    <p class="announcement-meta" style="margin-top:8px;">{{ t('source') }}: {% if weather_using_location %}{{ t('automatic_location') }}{% else %}{{ t('manual_city') }}{% endif %}</p>
+
+                    {% if weather %}
+                        <div class="weather-grid">
+                            <div class="weather-stat"><div class="announcement-meta">{{ t('city') }}</div><strong>{{ weather.city }}</strong></div>
+                            <div class="weather-stat"><div class="announcement-meta">{{ t('condition') }}</div><strong>{{ weather.condition }}</strong></div>
+                            <div class="weather-stat"><div class="announcement-meta">{{ t('temperature') }}</div><strong>{{ weather.temperature_c }} C</strong></div>
+                            <div class="weather-stat"><div class="announcement-meta">{{ t('humidity') }}</div><strong>{{ weather.humidity }}%</strong></div>
+                        </div>
+                        {% if not weather.ok %}
+                            <p class="announcement-meta" style="margin-top:8px;">{{ t('weather_service_unavailable') }}</p>
+                        {% endif %}
+                    {% endif %}
+                </article>
+            </section>
+
+            <section class="calendar-card">
+                <h2 class="card-title">{{ t('calendar_and_upcoming') }}</h2>
+                <p class="announcement-meta" style="margin-top:0;">{{ t('upcoming_counts', exams=upcoming_exam_count, activities=upcoming_activity_count) }}</p>
+
+                <div class="calendar-shell">
+                    <div>
+                        <h3 style="margin:0 0 8px; color:var(--moonbeam);">{{ t('calendar_view') }}</h3>
+                        <div class="calendar-view">
+                            <div class="calendar-toolbar">
+                                <button type="button" id="cal-prev">{{ t('previous_month') }}</button>
+                                <h4 id="cal-title"></h4>
+                                <button type="button" id="cal-next">{{ t('next_month') }}</button>
+                            </div>
+                            <div class="calendar-weekdays" id="cal-weekdays"></div>
+                            <div class="calendar-days" id="cal-days"></div>
+                        </div>
+
+                        <div class="day-editor" id="day-editor">
+                            <div class="day-editor-top">
+                                <h4 class="day-editor-title" id="selected-day-label">{{ t('select_day_prompt') }}</h4>
+                                <button type="button" class="plus-btn" id="open-day-add" title="{{ t('add_item') }}">+</button>
+                            </div>
+
+                            <form method="post" action="{{ url_for('student_dashboard') }}" class="day-add-form" id="day-add-form">
+                                <input type="hidden" name="action" value="add_calendar_event">
+                                <input type="hidden" name="event_date" id="selected-day-input">
+                                <input type="text" name="title" placeholder="{{ t('title') }}" required>
+                                <select name="event_type" required>
+                                    <option value="exam">{{ t('exam') }}</option>
+                                    <option value="activity">{{ t('activity') }}</option>
+                                </select>
+                                <textarea name="note" rows="3" placeholder="{{ t('optional_note') }}"></textarea>
+                                <button type="submit">{{ t('add_to_calendar') }}</button>
+                            </form>
+
+                            <div id="day-event-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <aside class="side-column">
+            <h3 class="sidebar-title">{{ t('modules') }}</h3>
+            <section class="home-grid">
+                {% for card in cards %}
+                    <a class="portal-card" href="{{ url_for(card.endpoint) }}">
+                        <h3>{{ card.title }}</h3>
+                        <p>{{ card.desc }}</p>
+                    </a>
+                {% endfor %}
+            </section>
+        </aside>
+    </div>
+</div>
+
+<script id="calendar-events-json" type="application/json">{{ calendar_events|tojson }}</script>
+<script id="calendar-i18n-json" type="application/json">{{ {
+    'select_day_prompt': t('select_day_prompt'),
+    'selected_day': t('selected_day'),
+    'no_events_this_day': t('no_events_this_day'),
+    'delete': t('delete'),
+    'student_dashboard_url': url_for('student_dashboard')
+}|tojson }}</script>
+<script>
+
+    function buildEventMap(events) {
+        const map = {};
+        for (const ev of events) {
+            const key = ev.event_date;
+            if (!map[key]) {
+                map[key] = [];
+            }
+            map[key].push(ev);
+        }
+        return map;
+    }
+
+    function renderCalendar(year, month, lang, eventMap) {
+        const weekdays = lang === 'tr'
+            ? ['Pzt', 'Sal', 'Car', 'Per', 'Cum', 'Cmt', 'Paz']
+            : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+        const title = document.getElementById('cal-title');
+        const weekdaysNode = document.getElementById('cal-weekdays');
+        const daysNode = document.getElementById('cal-days');
+        if (!title || !weekdaysNode || !daysNode) {
+            return;
+        }
+
+        title.textContent = new Intl.DateTimeFormat(lang === 'tr' ? 'tr-TR' : 'en-US', {
+            month: 'long',
+            year: 'numeric'
+        }).format(new Date(year, month, 1));
+
+        weekdaysNode.innerHTML = weekdays.map((w) => `<span>${w}</span>`).join('');
+        daysNode.innerHTML = '';
+
+        const firstDay = new Date(year, month, 1);
+        const firstWeekday = (firstDay.getDay() + 6) % 7;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (let i = 0; i < firstWeekday; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'day-cell muted';
+            daysNode.appendChild(cell);
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(year, month, d);
+            const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const events = eventMap[iso] || [];
+
+            const cell = document.createElement('div');
+            cell.className = 'day-cell';
+
+            if (dateObj.getTime() === today.getTime()) {
+                cell.classList.add('today');
+                const badge = document.createElement('span');
+                badge.className = 'today-badge';
+                badge.textContent = lang === 'tr' ? 'Bugun' : 'Today';
+                cell.appendChild(badge);
+            }
+
+            const num = document.createElement('div');
+            num.className = 'day-num';
+            num.textContent = String(d);
+            cell.appendChild(num);
+
+            if (events.length > 0) {
+                const dots = document.createElement('div');
+                dots.className = 'day-dots';
+                for (const ev of events.slice(0, 4)) {
+                    const dot = document.createElement('span');
+                    dot.className = `dot ${ev.event_type === 'exam' ? 'exam' : 'activity'}`;
+                    dot.title = ev.title;
+                    dots.appendChild(dot);
+                }
+                cell.appendChild(dots);
+            }
+
+            cell.dataset.date = iso;
+
+            daysNode.appendChild(cell);
+        }
+    }
+
+    function renderSelectedDay(isoDate, lang, eventMap, i18n) {
+        const label = document.getElementById('selected-day-label');
+        const list = document.getElementById('day-event-list');
+        const dayInput = document.getElementById('selected-day-input');
+        if (!label || !list || !dayInput) {
+            return;
+        }
+
+        dayInput.value = isoDate || '';
+        if (!isoDate) {
+            label.textContent = i18n.select_day_prompt;
+            list.innerHTML = `<p class="announcement-meta">${i18n.select_day_prompt}</p>`;
+            return;
+        }
+
+        const dayDate = new Date(`${isoDate}T00:00:00`);
+        const dayText = new Intl.DateTimeFormat(lang === 'tr' ? 'tr-TR' : 'en-US', {
+            day: '2-digit', month: 'long', year: 'numeric'
+        }).format(dayDate);
+        label.textContent = `${i18n.selected_day}: ${dayText}`;
+
+        const items = eventMap[isoDate] || [];
+        if (items.length === 0) {
+            list.innerHTML = `<p class="announcement-meta">${i18n.no_events_this_day}</p>`;
+            return;
+        }
+
+        list.innerHTML = items.map((ev) => {
+            const noteHtml = ev.note ? `<div class="event-meta">${ev.note}</div>` : '';
+            return `
+                <div class="event-item">
+                    <div class="event-head">
+                        <strong>${ev.title}</strong>
+                        <span class="chip-tag">${(ev.event_type || '').toUpperCase()}</span>
+                    </div>
+                    ${noteHtml}
+                    <form method="post" action="${i18n.student_dashboard_url}" class="event-delete-form">
+                        <input type="hidden" name="action" value="delete_calendar_event">
+                        <input type="hidden" name="event_id" value="${ev.id}">
+                        <button type="submit">${i18n.delete}</button>
+                    </form>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function submitWeatherByLocation() {
+        const form = document.getElementById('auto-weather-form');
+        const latInput = document.getElementById('auto-lat');
+        const lonInput = document.getElementById('auto-lon');
+        if (!form || !latInput || !lonInput || !navigator.geolocation) {
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                latInput.value = String(pos.coords.latitude);
+                lonInput.value = String(pos.coords.longitude);
+                form.submit();
+            },
+            () => {
+                // User denied permission or position is unavailable.
+            },
+            { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 }
+        );
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const eventsJsonNode = document.getElementById('calendar-events-json');
+        let calendarEvents = [];
+        if (eventsJsonNode && eventsJsonNode.textContent) {
+            try {
+                calendarEvents = JSON.parse(eventsJsonNode.textContent);
+            } catch (e) {
+                calendarEvents = [];
+            }
+        }
+
+        const i18nJsonNode = document.getElementById('calendar-i18n-json');
+        let calendarI18n = {
+            select_day_prompt: 'Takvimden bir gün seçin.',
+            selected_day: 'Seçili Gün',
+            no_events_this_day: 'Bu gün için etkinlik yok.',
+            delete: 'Sil',
+            student_dashboard_url: '/student_dashboard'
+        };
+        if (i18nJsonNode && i18nJsonNode.textContent) {
+            try {
+                calendarI18n = JSON.parse(i18nJsonNode.textContent);
+            } catch (e) {
+                // Keep defaults if parsing fails.
+            }
+        }
+
+        const flagNode = document.getElementById('weather-location-flag');
+        const usingLocation = !!flagNode && flagNode.getAttribute('data-using-location') === '1';
+        const currentLang = '{{ current_lang }}';
+        const eventMap = buildEventMap(calendarEvents);
+        const now = new Date();
+        let calYear = now.getFullYear();
+        let calMonth = now.getMonth();
+        let selectedDate = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        const prevBtn = document.getElementById('cal-prev');
+        const nextBtn = document.getElementById('cal-next');
+        const dayAddBtn = document.getElementById('open-day-add');
+        const dayAddForm = document.getElementById('day-add-form');
+        if (prevBtn && nextBtn) {
+            renderCalendar(calYear, calMonth, currentLang, eventMap);
+            renderSelectedDay(selectedDate, currentLang, eventMap, calendarI18n);
+
+            const bindDayClicks = () => {
+                document.querySelectorAll('.day-cell[data-date]').forEach((cell) => {
+                    cell.addEventListener('click', () => {
+                        selectedDate = cell.dataset.date || null;
+                        document.querySelectorAll('.day-cell.selected').forEach((n) => n.classList.remove('selected'));
+                        cell.classList.add('selected');
+                        renderSelectedDay(selectedDate, currentLang, eventMap, calendarI18n);
+                    });
+                });
+            };
+
+            const syncSelectedCell = () => {
+                document.querySelectorAll('.day-cell.selected').forEach((n) => n.classList.remove('selected'));
+                if (!selectedDate) {
+                    return;
+                }
+                const selectedNode = document.querySelector(`.day-cell[data-date="${selectedDate}"]`);
+                if (selectedNode) {
+                    selectedNode.classList.add('selected');
+                }
+            };
+
+            bindDayClicks();
+            syncSelectedCell();
+
+            prevBtn.addEventListener('click', () => {
+                calMonth -= 1;
+                if (calMonth < 0) {
+                    calMonth = 11;
+                    calYear -= 1;
+                }
+                renderCalendar(calYear, calMonth, currentLang, eventMap);
+                renderSelectedDay(selectedDate, currentLang, eventMap, calendarI18n);
+                bindDayClicks();
+                syncSelectedCell();
+            });
+
+            nextBtn.addEventListener('click', () => {
+                calMonth += 1;
+                if (calMonth > 11) {
+                    calMonth = 0;
+                    calYear += 1;
+                }
+                renderCalendar(calYear, calMonth, currentLang, eventMap);
+                renderSelectedDay(selectedDate, currentLang, eventMap, calendarI18n);
+                bindDayClicks();
+                syncSelectedCell();
+            });
+        }
+
+        if (dayAddBtn && dayAddForm) {
+            dayAddBtn.addEventListener('click', () => {
+                if (!selectedDate) {
+                    return;
+                }
+                dayAddForm.classList.toggle('open');
+            });
+        }
+
+        const btn = document.getElementById('use-location-btn');
+        if (btn) {
+            btn.addEventListener('click', submitWeatherByLocation);
+        }
+
+        // Try once automatically if location weather is not already active.
+        if (!usingLocation && !sessionStorage.getItem('weatherAutoAttempted')) {
+            sessionStorage.setItem('weatherAutoAttempted', '1');
+            submitWeatherByLocation();
+        }
+    });
+</script>
+{% endblock %}

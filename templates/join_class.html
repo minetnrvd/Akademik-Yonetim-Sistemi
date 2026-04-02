@@ -1,0 +1,30 @@
+﻿{% extends "base.html" %}
+{% block title %}{{ t('join_class') }}{% endblock %}
+{% block content %}
+<h2>{{ t('join_class') }}</h2>
+<form method="POST">
+    <input type="text" id="search" placeholder="{{ t('search_class') }}" onkeyup="filterClasses()">
+    <select name="class_id" id="class_select" required>
+        {% for c in available_classes %}
+        <option value="{{ c.id }}">{{ c.name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit">{{ t('join') }}</button>
+</form>
+
+<script>
+function filterClasses() {
+    var input = document.getElementById('search').value.toLowerCase();
+    var select = document.getElementById('class_select');
+    for (var i = 0; i < select.options.length; i++) {
+        var txt = select.options[i].text.toLowerCase();
+        select.options[i].style.display = txt.includes(input) ? '' : 'none';
+    }
+}
+</script>
+
+{% endblock %}
+
+
+
+

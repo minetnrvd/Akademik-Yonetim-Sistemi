@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}{{ lang_text('Ders Listesi', 'Course Roster') }}{% endblock %}
+{% block content %}
+<style>
+    .shell { display:flex; flex-direction:column; gap:14px; }
+    .top { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+    .top h1 { margin:0; }
+    .meta { color:var(--text-soft); font-size:13px; margin:0; }
+    .card { border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,0.04); padding:16px; }
+    .card h2 { margin:0 0 10px; color:var(--moonbeam); font-size:17px; }
+    .form-row { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+    .form-row label { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--text-soft); }
+    .form-row input, .form-row select { background:rgba(255,255,255,0.06); border:1px solid var(--line); border-radius:8px; color:inherit; padding:6px 10px; font-size:13px; }
+    .form-row input:focus, .form-row select:focus { outline:none; border-color:var(--moonbeam); }
+    .btn { padding:6px 14px; border-radius:8px; border:none; cursor:pointer; font-size:13px; }
+    .btn-primary { background:var(--moonbeam); color:#000; font-weight:600; }
+    .btn-secondary { background:rgba(255,255,255,0.08); color:inherit; border:1px solid var(--line); }
+    .btn-csv { background:#16a34a; color:#fff; font-weight:600; }
+    .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+    .badge { display:inline-block; background:rgba(255,255,255,0.08); border:1px solid var(--line); border-radius:20px; padding:2px 10px; font-size:12px; color:var(--text-soft); }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { border-bottom:1px solid var(--line); text-align:left; padding:9px 8px; }
+    th { color:var(--text-soft); font-weight:700; }
+    tbody tr:hover { background:rgba(255,255,255,0.03); }
+    .empty { color:var(--text-soft); font-size:13px; padding:16px 0; }
+</style>
+
+<div class="shell">
+    <div class="top">
+        <div>
+            <h1>{{ lang_text('Ders Listesi', 'Course Roster') }}</h1>
+            <p class="meta">{{ lang_text('Ogretmen', 'Teacher') }}: {{ user_name }}</p>
+        </div>
+        <a href="{{ url_for('teacher_dashboard') }}"><button type="button" class="btn btn-secondary">← {{ lang_text('Dashboard', 'Dashboard') }}</button></a>
+    </div>
+
+    <section class="card">
+        <h2>{{ lang_text('Ders Secimi', 'Course Selection') }}</h2>
+        {% if teacher_courses %}
+        <form method="get" action="{{ url_for('teacher_course_roster') }}" class="form-row">
+            <label>
+                {{ lang_text('Ders', 'Course') }}
+                <select name="course_id">
+                    {% for c in teacher_courses %}
+                        <option value="{{ c.id }}" {% if selected_course and c.id == selected_course.id %}selected{% endif %}>
+                            {{ c.code }} — {{ c.title }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+            {% if search_q %}
+            <input type="hidden" name="q" value="{{ search_q }}">
+            {% endif %}
+            <button type="submit" class="btn btn-primary">{{ lang_text('Goster', 'Show') }}</button>
+        </form>
+        {% else %}
+        <p class="meta">{{ lang_text('Bu ogretmene atanmis ders kaydi yok.', 'No course is assigned to this teacher.') }}</p>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <h2>{{ lang_text('Kayitli Ogrenciler', 'Enrolled Students') }}</h2>
+
+        {% if selected_course %}
+        <p class="meta" style="margin-bottom:12px;">
+            <strong>{{ selected_course.code }}</strong> — {{ selected_course.title }}
+            &nbsp;|&nbsp; {{ lang_text('Kredi', 'Credit') }}: {{ selected_course.credit or '—' }}
+            &nbsp;|&nbsp; {{ lang_text('Kontenjan', 'Capacity') }}: {{ selected_course.capacity or '—' }}
+            &nbsp;|&nbsp; {{ lang_text('Saat', 'Schedule') }}: {{ selected_course.schedule_slot or '—' }}
+        </p>
+
+        <div class="toolbar">
+            <form method="get" action="{{ url_for('teacher_course_roster') }}" class="form-row" style="margin:0;">
+                <input type="hidden" name="course_id" value="{{ selected_course.id }}">
+                <input type="text" name="q" value="{{ search_q or '' }}" placeholder="{{ lang_text('Ad, soyad veya ogrenci no...', 'Name, surname or student no...') }}">
+                <button type="submit" class="btn btn-primary">{{ lang_text('Ara', 'Search') }}</button>
+                {% if search_q %}
+                <a href="{{ url_for('teacher_course_roster', course_id=selected_course.id) }}"><button type="button" class="btn btn-secondary">{{ lang_text('Temizle', 'Clear') }}</button></a>
+                {% endif %}
+            </form>
+            <a href="{{ url_for('teacher_course_roster', course_id=selected_course.id, q=search_q or '', export='csv') }}">
+                <button type="button" class="btn btn-csv">⬇ {{ lang_text('CSV Indir', 'Download CSV') }}</button>
+            </a>
+            <span class="badge">{{ enrolled_rows|length }} {{ lang_text('ogrenci', 'students') }}{% if search_q %} {{ lang_text('(filtrelenmis)', '(filtered)') }}{% endif %}</span>
+        </div>
+
+        {% if enrolled_rows %}
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>{{ lang_text('Ogrenci No', 'Student No') }}</th>
+                    <th>{{ lang_text('Ad Soyad', 'Full Name') }}</th>
+                    <th>{{ lang_text('E-posta', 'Email') }}</th>
+                    <th>{{ lang_text('Kayit Tarihi', 'Enrollment Date') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for en in enrolled_rows %}
+                <tr>
+                    <td style="color:var(--text-soft);">{{ loop.index }}</td>
+                    <td>{{ en.student.student_number if en.student else '—' }}</td>
+                    <td>{{ en.student.user.name if en.student and en.student.user else '—' }}</td>
+                    <td style="color:var(--text-soft);">{{ en.student.user.email if en.student and en.student.user else '—' }}</td>
+                    <td style="color:var(--text-soft);">{{ en.created_at.strftime('%d.%m.%Y %H:%M') if en.created_at else '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty">
+            {% if search_q %}
+                {{ lang_text('"', '"') }}<strong>{{ search_q }}</strong>{{ lang_text('" icin sonuc bulunamadi.', '" returned no results.') }}
+            {% else %}
+                {{ lang_text('Bu derse kayitli ogrenci bulunmuyor.', 'No students are enrolled in this course.') }}
+            {% endif %}
+        </p>
+        {% endif %}
+
+        {% endif %}
+    </section>
+</div>
+
+{% endblock %}

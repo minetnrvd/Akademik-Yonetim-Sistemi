@@ -1,0 +1,88 @@
+{
+  "captured_at_utc": "2026-04-01T19:34:17.544712Z",
+  "status": "closed",
+  "steps": [
+    {
+      "name": "Day 33 rehearsal report is approved",
+      "passed": true,
+      "detail": {
+        "path": "C:\\Uygulama\\qr_attandance_project\\project_notes\\release\\release_rollback_rehearsal_2026-04-01T19-33-32Z.json",
+        "status": "ok"
+      }
+    },
+    {
+      "name": "Day 34 controlled rollout report is approved",
+      "passed": true,
+      "detail": {
+        "path": "C:\\Uygulama\\qr_attandance_project\\project_notes\\rollout\\controlled_rollout_2026-04-01T19-34-09Z.json",
+        "status": "approved"
+      }
+    },
+    {
+      "name": "Latest UAT smoke pass rate is 100%",
+      "passed": true,
+      "detail": {
+        "path": "C:\\Uygulama\\qr_attandance_project\\project_notes\\uat\\uat_smoke_2026-04-01T19-34-09Z.json",
+        "passed": 10,
+        "total": 10
+      }
+    },
+    {
+      "name": "Health endpoint returns valid status payload",
+      "passed": true,
+      "detail": {
+        "status_code": 200,
+        "status": "healthy",
+        "database_ok": true
+      }
+    },
+    {
+      "name": "Performance baseline and load profile artifacts exist",
+      "passed": true,
+      "detail": {
+        "baseline_path": "C:\\Uygulama\\qr_attandance_project\\project_notes\\performance\\baseline_2026-03-29T20-43-58Z.json",
+        "load_profile_path": "C:\\Uygulama\\qr_attandance_project\\project_notes\\performance\\load_profile_2026-03-29T20-45-07Z.json"
+      }
+    }
+  ],
+  "health_snapshot": {
+    "status_code": 200,
+    "status": "healthy",
+    "reasons": [],
+    "totals": {
+      "error_4xx": 0,
+      "error_5xx": 0,
+      "error_rate_pct": 0.0,
+      "requests": 0
+    },
+    "latency_ms": {
+      "global_avg": 0.0,
+      "p95_estimate": 0.0,
+      "slow_threshold": 750,
+      "warn_threshold": 1000
+    }
+  },
+  "metrics_snapshot": {
+    "since_utc": "2026-04-01T19:34:15.637391Z",
+    "total_requests": 1,
+    "error_4xx": 0,
+    "error_5xx": 0,
+    "top_endpoints": [
+      {
+        "endpoint": "GET health_check",
+        "count": 1,
+        "avg_ms": 0.75,
+        "p95_ms": null,
+        "max_ms": 0.753199914470315
+      }
+    ]
+  },
+  "artifact_index": {
+    "rehearsal_report": "C:\\Uygulama\\qr_attandance_project\\project_notes\\release\\release_rollback_rehearsal_2026-04-01T19-33-32Z.json",
+    "rollout_report": "C:\\Uygulama\\qr_attandance_project\\project_notes\\rollout\\controlled_rollout_2026-04-01T19-34-09Z.json",
+    "uat_report": "C:\\Uygulama\\qr_attandance_project\\project_notes\\uat\\uat_smoke_2026-04-01T19-34-09Z.json",
+    "baseline_report": "C:\\Uygulama\\qr_attandance_project\\project_notes\\performance\\baseline_2026-03-29T20-43-58Z.json",
+    "load_profile_report": "C:\\Uygulama\\qr_attandance_project\\project_notes\\performance\\load_profile_2026-03-29T20-45-07Z.json"
+  },
+  "next_action": "Close Day 35 and archive artifacts."
+}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<style>
+    .module-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .module-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+    }
+
+    .details-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .details-table td {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        text-align: left;
+    }
+
+    .details-table td:first-child {
+        width: 32%;
+        color: var(--text-soft);
+    }
+</style>
+
+<div class="module-shell">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+        <h1>{{ title }}</h1>
+        <a href="{{ url_for('student_dashboard') }}"><button type="button">{{ t('back_to_home') }}</button></a>
+    </div>
+
+    <section class="module-card">
+        {% if details %}
+            <table class="details-table">
+                <tbody>
+                    {% for label, value in details %}
+                        <tr>
+                            <td>{{ label }}</td>
+                            <td>{{ value }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="announcement-meta" style="margin:0;">{{ section_note if section_note else t('not_set_yet') }}</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
