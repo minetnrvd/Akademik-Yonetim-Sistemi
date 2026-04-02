@@ -291,17 +291,8 @@
 
 <script>
     function startAndOpenQr(form) {
-        const win = window.open('about:blank', '_blank');
-        if (!win) {
-            alert("{{ t('popup_blocked') }}");
-            return;
-        }
-
-        const targetName = 'qr_tab_' + Date.now();
-        win.name = targetName;
-
         const originalTarget = form.target;
-        form.target = targetName;
+        form.target = '_blank';
 
         const hiddenAction = document.createElement('input');
         hiddenAction.type = 'hidden';

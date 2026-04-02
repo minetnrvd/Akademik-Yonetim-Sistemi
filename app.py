@@ -5060,8 +5060,12 @@ def create_session():
         return redirect(url_for('teacher_dashboard'))
 
     if not week:
-        flash("Week is required.", "danger")
-        return redirect(url_for('teacher_dashboard'))
+        # For QR-open flow, allow quick launch by assigning today's label.
+        if action == 'start_and_show_qr':
+            week = datetime.datetime.now().strftime('%Y-%m-%d')
+        else:
+            flash("Week is required.", "danger")
+            return redirect(url_for('teacher_dashboard'))
 
     if not re.match(r'^[A-Za-z0-9._ -]+$', week):
         flash("Week contains invalid characters.", "danger")
