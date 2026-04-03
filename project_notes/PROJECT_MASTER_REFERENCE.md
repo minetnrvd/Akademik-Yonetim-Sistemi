@@ -65,6 +65,7 @@ The project has been production-prepared with backup/restore drills, controlled 
 - project_notes/CONTROLLED_PRODUCTION_ROLLOUT_RUNBOOK.md
 - project_notes/POST_GO_LIVE_MONITORING_RUNBOOK.md
 - project_notes/BACKUP_RESTORE_DRILL_RUNBOOK.md
+- project_notes/POSTGRES_PRODUCTION_CUTOVER_CHECKLIST.md
 
 ## 10) Day-Report Consolidation Pointer
 For condensed day-level outcomes and retained evidence artifacts, see:
