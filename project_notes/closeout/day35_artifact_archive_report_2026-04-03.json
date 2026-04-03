@@ -1,0 +1,22 @@
+{
+  "captured_at_utc": "2026-04-03T00:00:00Z",
+  "status": "completed",
+  "scope": "Day 35 final action - artifact archive completion",
+  "source_closeout_report": "project_notes/closeout/post_go_live_closeout_2026-04-01T19-34-17Z.json",
+  "archived_artifacts": {
+    "rehearsal_report": "project_notes/release/release_rollback_rehearsal_2026-04-01T19-33-32Z.json",
+    "rollout_report": "project_notes/rollout/controlled_rollout_2026-04-01T19-34-09Z.json",
+    "uat_report": "project_notes/uat/uat_smoke_2026-04-01T19-34-09Z.json",
+    "baseline_report": "project_notes/performance/baseline_2026-03-29T20-43-58Z.json",
+    "load_profile_report": "project_notes/performance/load_profile_2026-03-29T20-45-07Z.json",
+    "cutover_report": "project_notes/closeout/sqlite_to_postgres_cutover_2026-04-01T19-31-50Z.json",
+    "day13_report": "project_notes/closeout/day13_backup_logging_health_report.json",
+    "day14_report": "project_notes/closeout/day14_final_qc_report.json"
+  },
+  "verification": {
+    "paths_checked": true,
+    "readable": true,
+    "consistency_with_consolidated_summary": true
+  },
+  "result": "Day 35 closure and artifact archive process is complete."
+}
