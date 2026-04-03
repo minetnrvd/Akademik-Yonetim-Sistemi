@@ -89,6 +89,8 @@ Trigger rollback if any condition occurs:
   - project_notes/closeout/sqlite_to_postgres_cutover_<UTC_TIMESTAMP>.json
 - Suggested handoff note:
   - Append artifact path to project_notes/REPORTS_CONSOLIDATED_SUMMARY.md
+- Execution log template:
+  - project_notes/POSTGRES_CUTOVER_EXECUTION_LOG_TEMPLATE.md
 
 ## Sign-off
 - Technical owner:
