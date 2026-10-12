@@ -3,6 +3,7 @@
 {% block title %}{{ lang_text('Admin İşlem Geçmişi', 'Admin Operation Audit') }}{% endblock %}
 
 {% block content %}
+{% include '_audit_tabs.html' %}
 <style>
     .ops-shell {
         display: flex;
@@ -120,7 +121,7 @@
 
 <div class="ops-shell">
     <div class="ops-top">
-        <h1>{{ lang_text('Admin İşlem Geçmişi', 'Admin Operation Audit') }}</h1>
+        <h2 class="audit-section-title">{{ lang_text('Admin İşlem Geçmişi', 'Admin Operation Audit') }}</h2>
         <a href="{{ url_for('admin_dashboard') }}"><button type="button">← {{ lang_text('Admin Paneli', 'Admin Dashboard') }}</button></a>
     </div>
 

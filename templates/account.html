@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lang_text('Hesabım', 'My Account') }}{% endblock %}
+
+{# One account page for every role. Sections switch on the context built by _account_context():
+   acc_endpoint (form target), show_profile (teacher), photo_url / acc_has_photo (student, teacher),
+   delete_mode ('enabled' | 'disabled' | None). #}
+{% block content %}
+
+<style>
+    .acc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; max-width: 1000px; }
+    .acc-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    .acc-card { padding: 14px 16px; border-radius: 14px; border: 1px solid var(--pv-line, var(--line, #dfe3ea)); background: var(--pv-surface, rgba(255,255,255,0.04)); }
+    .acc-card h2 { margin: 0 0 10px; font-size: 1rem; }
+    .acc-card form { display: block; max-width: none; margin: 0; }
+    .acc-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
+    .acc-fields .wide { grid-column: 1 / -1; }
+    .acc-card label { display: flex; flex-direction: column; gap: 3px; font-size: .78rem; opacity: .85; margin: 0; }
+    .acc-card input[type=text], .acc-card input[type=password], .acc-card input[type=file] { width: 100%; box-sizing: border-box; padding: 7px 10px; font-size: .9rem; margin: 0; }
+    .acc-card input[type=file] { padding: 5px 8px; font-size: .8rem; }
+    .acc-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 10px; flex-wrap: wrap; }
+    .acc-card button { width: auto; padding: 7px 16px; font-size: .88rem; margin: 0; }
+    .acc-details { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
+    .acc-details .wide { grid-column: 1 / -1; }
+    .acc-details dt { font-size: .72rem; opacity: .6; text-transform: uppercase; letter-spacing: .03em; }
+    .acc-details dd { margin: 2px 0 0; font-size: .92rem; overflow-wrap: anywhere; }
+    .acc-photo-row { display: flex; gap: 12px; align-items: center; }
+    .acc-avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; flex: none; }
+    .acc-initials { display: flex; align-items: center; justify-content: center; background: #1b3b63; color: #fff; font-size: 1.3rem; font-weight: 700; }
+    .acc-photo-row form { flex: 1; min-width: 0; }
+    .acc-hint { font-size: .72rem; opacity: .65; margin: 4px 0 0; }
+    .acc-full { grid-column: 1 / -1; width: 100%; max-width: none; box-sizing: border-box; }
+    .acc-danger summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+    .acc-danger p { font-size: .82rem; margin: 8px 0; }
+    .acc-danger .acc-fields { grid-template-columns: minmax(0, 320px); }
+    @media (max-width: 800px) { .acc-grid { grid-template-columns: minmax(0, 1fr); } .acc-fields { grid-template-columns: minmax(0, 1fr); } }
+</style>
+
+<h1>{{ t('account_settings') }}</h1>
+
+<div class="acc-grid">
+    <div class="acc-col">
+        <section class="acc-card">
+            <h2>{{ lang_text('Hesap bilgileri', 'Account details') }}</h2>
+            <dl class="acc-details">
+                <div><dt>{{ lang_text('Ad Soyad', 'Name') }}</dt><dd>{{ user.name }}</dd></div>
+                <div><dt>{{ lang_text('Rol', 'Role') }}</dt><dd>{{ role_label }}</dd></div>
+                <div class="wide"><dt>{{ lang_text('E-posta', 'E-mail') }}</dt><dd>{{ user.email }}</dd></div>
+            </dl>
+        </section>
+
+        {% if show_profile %}
+        <section class="acc-card">
+            <h2>{{ lang_text('Profil bilgileri', 'Profile information') }}</h2>
+            <form method="post" action="{{ url_for(acc_endpoint) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="update_profile">
+                <div class="acc-fields">
+                    <label>{{ lang_text('Unvan', 'Title') }}
+                        <input type="text" name="academic_title" maxlength="60" value="{{ user.academic_title or '' }}" placeholder="{{ lang_text('Örn. Prof. Dr.', 'e.g. Prof. Dr.') }}">
+                    </label>
+                    <label>{{ lang_text('Ofis', 'Office') }}
+                        <input type="text" name="office" maxlength="80" value="{{ user.office or '' }}" placeholder="{{ lang_text('Örn. B Blok, Oda 214', 'e.g. Block B, Room 214') }}">
+                    </label>
+                    <label>{{ lang_text('Fakülte', 'Faculty') }}
+                        <input type="text" name="faculty" maxlength="140" value="{{ user.faculty or '' }}">
+                    </label>
+                    <label>{{ lang_text('Bölüm', 'Department') }}
+                        <input type="text" name="department" maxlength="140" value="{{ user.department or '' }}">
+                    </label>
+                    <label class="wide">{{ lang_text('Ofis saatleri', 'Office hours') }}
+                        <input type="text" name="office_hours" maxlength="160" value="{{ user.office_hours or '' }}" placeholder="{{ lang_text('Örn. Salı 10:00-12:00, Perşembe 14:00-15:30', 'e.g. Tue 10:00-12:00, Thu 14:00-15:30') }}">
+                    </label>
+                </div>
+                <div class="acc-actions">
+                    <button type="submit">{{ lang_text('Kaydet', 'Save') }}</button>
+                </div>
+            </form>
+        </section>
+        {% endif %}
+    </div>
+
+    <div class="acc-col">
+        {% if photo_enabled %}
+        <section class="acc-card">
+            <h2>{{ lang_text('Profil fotoğrafı', 'Profile photo') }}</h2>
+            <div class="acc-photo-row">
+                {% if photo_url %}
+                <img class="acc-avatar" src="{{ photo_url }}" alt="{{ user.name }}">
+                {% else %}
+                <div class="acc-avatar acc-initials" aria-hidden="true">{{ (user.name or '?')[:1] | upper }}</div>
+                {% endif %}
+                <form method="post" action="{{ url_for(acc_endpoint) }}" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required>
+                    <p class="acc-hint">{{ lang_text('JPG, PNG veya WEBP, en fazla 2 MB.', 'JPG, PNG or WEBP, at most 2 MB.') }}</p>
+                    <div class="acc-actions">
+                        <button type="submit" name="action" value="upload_photo">{{ lang_text('Yükle', 'Upload') }}</button>
+                        {% if photo_url %}
+                        <button type="submit" name="action" value="remove_photo" formnovalidate>{{ lang_text('Kaldır', 'Remove') }}</button>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="acc-card">
+            <h2>{{ lang_text('Şifre değiştir', 'Change password') }}</h2>
+            <form method="post" action="{{ url_for(acc_endpoint) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="change_password">
+                <div class="acc-fields">
+                    <label class="wide">{{ lang_text('Mevcut şifre', 'Current password') }}
+                        <input type="password" name="current_password" autocomplete="current-password" required>
+                    </label>
+                    <label>{{ lang_text('Yeni şifre', 'New password') }}
+                        <input type="password" name="new_password" autocomplete="new-password" required>
+                    </label>
+                    <label>{{ lang_text('Yeni şifre (tekrar)', 'Confirm new password') }}
+                        <input type="password" name="new_password_confirm" autocomplete="new-password" required>
+                    </label>
+                </div>
+                <p class="acc-hint">{{ lang_text('Şifre en az ' ~ password_min_length ~ ' karakter olmalı ve adınızı ya da e-postanızı içermemeli.', 'Use at least ' ~ password_min_length ~ ' characters, not containing your name or e-mail.') }}</p>
+                <div class="acc-actions">
+                    <button type="submit">{{ lang_text('Şifreyi güncelle', 'Update password') }}</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    {% if delete_mode == 'enabled' %}
+    <details class="acc-card acc-danger acc-full">
+        <summary>{{ t('delete_account') }}</summary>
+        <p>{{ t('delete_account_warning') }}</p>
+        <form method="post" action="{{ url_for(acc_endpoint) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="delete_account">
+            <div class="acc-fields">
+                <label>{{ t('password') }}
+                    <input type="password" name="password" required>
+                </label>
+            </div>
+            <div class="acc-actions">
+                <button type="submit" class="btn-danger">{{ t('delete_account') }}</button>
+            </div>
+        </form>
+    </details>
+    {% elif delete_mode == 'disabled' %}
+    <section class="acc-card acc-full">
+        <h2>{{ t('account_deletion') }}</h2>
+        <p class="acc-hint" style="margin:0;">{{ t('student_delete_account_disabled') }}</p>
+    </section>
+    {% endif %}
+</div>
+
+{% endblock %}

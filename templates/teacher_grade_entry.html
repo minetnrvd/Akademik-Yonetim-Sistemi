@@ -91,14 +91,14 @@
     <div class="grade-top">
         <h1>{{ lang_text('Not Ekleme Sistemi', 'Grade Entry System') }}</h1>
         <div>
-            <a href="{{ url_for('teacher_dashboard') }}"><button type="button">{{ lang_text('Dashboarda Don', 'Back to Dashboard') }}</button></a>
+            <a href="{{ url_for('teacher_dashboard') }}"><button type="button">{{ lang_text('Dashboarda Dön', 'Back to Dashboard') }}</button></a>
         </div>
     </div>
 
     <div class="grid">
         <section class="card">
             <h2>{{ lang_text('Yeni Not Gir', 'Enter New Grade') }}</h2>
-            <p class="meta">{{ lang_text('Ogretmen', 'Teacher') }}: {{ user_name }}</p>
+            <p class="meta">{{ lang_text('Öğretmen', 'Teacher') }}: {{ user_name }}</p>
 
             {% if teacher_classes %}
             <form class="form-stack" method="post" action="{{ url_for('teacher_grade_entry') }}">
@@ -109,21 +109,21 @@
                     {% endfor %}
                 </select>
 
-                <label>{{ lang_text('Ogrenci', 'Student') }}</label>
+                <label>{{ lang_text('Öğrenci', 'Student') }}</label>
                 <select name="student_id" required>
                     {% for stu in students_for_class %}
                         <option value="{{ stu.id }}">{{ stu.user.name }} ({{ stu.student_number }})</option>
                     {% endfor %}
                 </select>
 
-                <label>{{ lang_text('Degerlendirme', 'Assessment') }}</label>
-                <input type="text" name="assessment_name" placeholder="{{ lang_text('Orn: Vize 1', 'Example: Midterm 1') }}" required>
+                <label>{{ lang_text('Değerlendirme', 'Assessment') }}</label>
+                <input type="text" name="assessment_name" placeholder="{{ lang_text('Örn: Vize 1', 'Example: Midterm 1') }}" required>
 
-                <label>{{ lang_text('Sinav Kac Uzerinden?', 'Exam Total Points') }}</label>
-                <input type="number" name="max_points" id="max-points" min="1" step="0.01" placeholder="{{ lang_text('Orn: 100', 'Example: 100') }}" required>
+                <label>{{ lang_text('Sınav Kaç Üzerinden?', 'Exam Total Points') }}</label>
+                <input type="number" name="max_points" id="max-points" min="1" step="0.01" placeholder="{{ lang_text('Örn: 100', 'Example: 100') }}" required>
 
-                <label>{{ lang_text('Sinav Notu', 'Exam Score') }}</label>
-                <input type="number" name="score" id="score-points" min="0" step="0.01" placeholder="{{ lang_text('Orn: 78', 'Example: 78') }}" required>
+                <label>{{ lang_text('Sınav Notu', 'Exam Score') }}</label>
+                <input type="number" name="score" id="score-points" min="0" step="0.01" placeholder="{{ lang_text('Örn: 78', 'Example: 78') }}" required>
 
                 <label>{{ lang_text('Otomatik Harf Notu', 'Automatic Letter Grade') }}</label>
                 <input type="text" id="auto-letter" value="-" readonly>
@@ -131,7 +131,7 @@
                 <button type="submit">{{ lang_text('Notu Kaydet', 'Save Grade') }}</button>
             </form>
             {% else %}
-                <p class="meta">{{ lang_text('Not girisi icin once dersiniz olmalidir.', 'You must have at least one class before entering grades.') }}</p>
+                <p class="meta">{{ lang_text('Not girişi için önce dersiniz olmalıdır.', 'You must have at least one class before entering grades.') }}</p>
             {% endif %}
         </section>
 
@@ -139,7 +139,7 @@
             <h2>{{ lang_text('Son Girilen Notlar', 'Recent Grades') }}</h2>
             {% if selected_class %}
                 <p class="meta">
-                    {{ lang_text('Secili ders', 'Selected class') }}: <span class="pill">{{ selected_class.name }}</span>
+                    {{ lang_text('Seçili ders', 'Selected class') }}: <span class="pill">{{ selected_class.name }}</span>
                 </p>
             {% endif %}
 
@@ -148,11 +148,12 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>{{ lang_text('Ogrenci', 'Student') }}</th>
-                            <th>{{ lang_text('Degerlendirme', 'Assessment') }}</th>
+                            <th>{{ lang_text('Öğrenci', 'Student') }}</th>
+                            <th>{{ lang_text('Değerlendirme', 'Assessment') }}</th>
                             <th>{{ lang_text('Not', 'Grade') }}</th>
                             <th>{{ lang_text('Puan', 'Points') }}</th>
                             <th>{{ lang_text('Tarih', 'Date') }}</th>
+                            <th>{{ lang_text('Giren', 'Entered by') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -163,13 +164,16 @@
                             <td>{{ g.letter_grade }}</td>
                             <td>{{ '%.2f'|format(g.grade_point) }}</td>
                             <td>{{ g.created_at.strftime('%d-%m-%Y %H:%M') if g.created_at else '-' }}</td>
+                            <td>
+                                {% if g.entered_by %}{{ g.entered_by.name }}{% if g.entered_by.role == 'assistant' %} <span class="mb-kind">{{ lang_text('Asistan', 'Assistant') }}</span>{% endif %}{% else %}-{% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
             {% else %}
-                <p class="meta">{{ lang_text('Henuz not kaydi yok.', 'No grades recorded yet.') }}</p>
+                <p class="meta">{{ lang_text('Henüz not kaydı yok.', 'No grades recorded yet.') }}</p>
             {% endif %}
         </section>
     </div>

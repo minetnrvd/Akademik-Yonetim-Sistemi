@@ -88,22 +88,22 @@
     <div class="report-top">
         <div>
             <h1>{{ lang_text('Raporlar', 'Reports') }}</h1>
-            <p class="report-meta">{{ user.name }} • {{ lang_text('Ogretmen', 'Teacher') if report_role == 'teacher' else lang_text('Ogrenci', 'Student') }} {{ lang_text('gorunumu', 'view') }}</p>
+            <p class="report-meta">{{ user.name }} • {{ lang_text('Öğretmen', 'Teacher') if report_role == 'teacher' else lang_text('Öğrenci', 'Student') }} {{ lang_text('görünümü', 'view') }}</p>
         </div>
         <div class="back-row">
             {% if report_role == 'teacher' %}
-                <a href="{{ url_for('teacher_dashboard') }}"><button type="button">← {{ lang_text('Ogretmen Paneli', 'Teacher Dashboard') }}</button></a>
+                <a href="{{ url_for('teacher_dashboard') }}"><button type="button">← {{ lang_text('Öğretmen Paneli', 'Teacher Dashboard') }}</button></a>
             {% else %}
-                <a href="{{ url_for('student_dashboard') }}"><button type="button">← {{ lang_text('Ogrenci Paneli', 'Student Dashboard') }}</button></a>
+                <a href="{{ url_for('student_dashboard') }}"><button type="button">← {{ lang_text('Öğrenci Paneli', 'Student Dashboard') }}</button></a>
             {% endif %}
         </div>
     </div>
 
     {% if report_role == 'teacher' %}
     <section class="quick-stats">
-        <article class="stat-card"><div class="label">{{ lang_text('Ders Sayisi', 'Class Count') }}</div><div class="value">{{ totals.class_count }}</div></article>
-        <article class="stat-card"><div class="label">{{ lang_text('Toplam Ogrenci', 'Total Students') }}</div><div class="value">{{ totals.student_total }}</div></article>
-        <article class="stat-card"><div class="label">{{ lang_text('Onayli Oturum', 'Confirmed Sessions') }}</div><div class="value">{{ totals.session_total }}</div></article>
+        <article class="stat-card"><div class="label">{{ lang_text('Ders Sayısı', 'Class Count') }}</div><div class="value">{{ totals.class_count }}</div></article>
+        <article class="stat-card"><div class="label">{{ lang_text('Toplam Öğrenci', 'Total Students') }}</div><div class="value">{{ totals.student_total }}</div></article>
+        <article class="stat-card"><div class="label">{{ lang_text('Onaylı Oturum', 'Confirmed Sessions') }}</div><div class="value">{{ totals.session_total }}</div></article>
         <article class="stat-card"><div class="label">{{ lang_text('Genel Devam %', 'Overall Attendance %') }}</div><div class="value">{{ '%.2f'|format(totals.attendance_rate) }}%</div></article>
     </section>
 
@@ -112,9 +112,9 @@
             <thead>
                 <tr>
                     <th>{{ lang_text('Ders', 'Class') }}</th>
-                    <th>{{ lang_text('Ogrenci', 'Students') }}</th>
-                    <th>{{ lang_text('Onayli Oturum', 'Confirmed Sessions') }}</th>
-                    <th>{{ lang_text('Var Isareti', 'Present Marks') }}</th>
+                    <th>{{ lang_text('Öğrenci', 'Students') }}</th>
+                    <th>{{ lang_text('Onaylı Oturum', 'Confirmed Sessions') }}</th>
+                    <th>{{ lang_text('Var İşareti', 'Present Marks') }}</th>
                     <th>{{ lang_text('Beklenen', 'Expected') }}</th>
                     <th>{{ lang_text('Devam %', 'Attendance %') }}</th>
                 </tr>
@@ -131,16 +131,16 @@
                 </tr>
                 {% endfor %}
                 {% if not rows %}
-                <tr><td colspan="6">{{ lang_text('Rapor verisi bulunamadi.', 'No report data found.') }}</td></tr>
+                <tr><td colspan="6">{{ lang_text('Rapor verisi bulunamadı.', 'No report data found.') }}</td></tr>
                 {% endif %}
             </tbody>
         </table>
     </section>
     {% else %}
     <section class="quick-stats">
-        <article class="stat-card"><div class="label">{{ lang_text('Katildigim Dersler', 'My Classes') }}</div><div class="value">{{ totals.class_count }}</div></article>
+        <article class="stat-card"><div class="label">{{ lang_text('Katıldığım Dersler', 'My Classes') }}</div><div class="value">{{ totals.class_count }}</div></article>
         <article class="stat-card"><div class="label">{{ lang_text('Toplam Oturum', 'Total Sessions') }}</div><div class="value">{{ totals.total_sessions }}</div></article>
-        <article class="stat-card"><div class="label">{{ lang_text('Katildim', 'Present') }}</div><div class="value">{{ totals.present_total }}</div></article>
+        <article class="stat-card"><div class="label">{{ lang_text('Katıldım', 'Present') }}</div><div class="value">{{ totals.present_total }}</div></article>
         <article class="stat-card"><div class="label">{{ lang_text('Devam %', 'Attendance %') }}</div><div class="value">{{ '%.2f'|format(totals.attendance_rate) }}%</div></article>
     </section>
 
@@ -166,7 +166,7 @@
                 </tr>
                 {% endfor %}
                 {% if not rows %}
-                <tr><td colspan="5">{{ lang_text('Rapor verisi bulunamadi.', 'No report data found.') }}</td></tr>
+                <tr><td colspan="5">{{ lang_text('Rapor verisi bulunamadı.', 'No report data found.') }}</td></tr>
                 {% endif %}
             </tbody>
         </table>

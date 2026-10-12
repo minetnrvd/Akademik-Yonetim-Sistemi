@@ -1,254 +1,150 @@
 {% extends "base.html" %}
-
-{% block title %}{{ lang_text('E-posta Bildirimleri', 'Email Notifications') }}{% endblock %}
+{% block title %}{{ lang_text('Duyurular', 'Announcements') }}{% endblock %}
 
 {% block content %}
-<style>
-    .notify-shell { display: flex; flex-direction: column; gap: 12px; }
-    .notify-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .notify-note { margin: 0; color: var(--text-soft); }
-    .notify-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-    .notify-card { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: rgba(255, 255, 255, 0.03); }
-    .notify-card .label { color: var(--text-soft); font-size: 12px; }
-    .notify-card .value { color: var(--moonbeam); font-size: 19px; font-weight: 700; margin-top: 4px; }
-    .notify-panel { border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,0.03); padding: 12px; }
-    .notify-panel h3 { margin: 0 0 8px; }
-    .notify-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .notify-form .full { grid-column: 1 / -1; }
-    .notify-form input, .notify-form select, .notify-form textarea { width: 100%; }
-    .notify-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .invalid-list { margin: 8px 0 0; padding-left: 16px; color: #f2c6c6; }
-    .announce-list { display: grid; gap: 8px; margin-top: 8px; }
-    .announce-item { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: rgba(255, 255, 255, 0.02); }
-    .announce-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
-    .announce-title { font-weight: 700; color: var(--moonbeam); }
-    .announce-meta { color: var(--text-soft); font-size: 12px; }
-    .announce-role { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; color: var(--text-soft); }
-    .announce-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-    @media (max-width: 980px) { .notify-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .notify-form { grid-template-columns: 1fr; } }
-    @media (max-width: 640px) { .notify-grid { grid-template-columns: 1fr; } }
-</style>
+{% set editing = edit_announcement is not none %}
+{% set a = edit_announcement %}
+{% set role_options = audience_options() %}
 
-<div class="notify-shell">
-    <div class="notify-top">
-        <h1>{{ lang_text('E-posta Bildirimleri', 'Email Notifications') }}</h1>
-        <a href="{{ url_for('admin_dashboard') }}"><button type="button">← {{ lang_text('Admin Paneli', 'Admin Dashboard') }}</button></a>
+<div class="mb-head">
+    <div>
+        <h1>{{ lang_text('Duyurular', 'Announcements') }}</h1>
+        <p>{{ lang_text('Duyuru yayınla, isterseniz e-posta olarak da gönder.', 'Publish an announcement and optionally e-mail it.') }}</p>
     </div>
+    <a class="cmp-link" href="{{ url_for('announcements_inbox', box='sent') }}">{{ lang_text('Gönderilen duyurular', 'Sent announcements') }} →</a>
+</div>
 
-    <p class="notify-note">{{ lang_text('Rol bazlı e-posta bildirimi gönderimi. Dry-run aktifse e-posta gönderilmez, yalnızca doğrulama/log yapılır.', 'Role-based email delivery. If dry-run is enabled, email is not sent and only validation/logging is performed.') }}</p>
+<section class="cmp-card">
+    <h2>{{ lang_text('Duyuruyu Düzenle', 'Edit Announcement') if editing else lang_text('Yeni Duyuru', 'New Announcement') }}</h2>
 
-    <section class="notify-grid">
-        <article class="notify-card"><div class="label">{{ lang_text('Seçili Rol', 'Selected Role') }}</div><div class="value">{{ stats.selected_role }}</div></article>
-        <article class="notify-card"><div class="label">{{ lang_text('Hedef Kullanıcı', 'Target Users') }}</div><div class="value">{{ stats.selected_user_count }}</div></article>
-        <article class="notify-card"><div class="label">{{ lang_text('Geçersiz E-posta', 'Invalid Emails') }}</div><div class="value">{{ stats.invalid_email_count }}</div></article>
-        <article class="notify-card"><div class="label">{{ lang_text('Mod', 'Mode') }}</div><div class="value">{{ 'DRY-RUN' if stats.dry_run else lang_text('CANLI', 'LIVE') }}</div></article>
-    </section>
+    <form method="post" action="{{ url_for('admin_notifications', edit=a.id) if editing else url_for('admin_notifications') }}" class="cmp-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if editing %}
+            <input type="hidden" name="action" value="update_announcement">
+            <input type="hidden" name="announcement_id" value="{{ a.id }}">
+            <input type="hidden" name="return_to" value="inbox">
+        {% else %}
+            <input type="hidden" name="action" value="compose">
+            <fieldset class="cmp-channel">
+                <legend>{{ lang_text('Gönderim', 'Delivery') }}</legend>
+                <label><input type="radio" name="channel" value="announcement" checked> <span>{{ lang_text('Duyuru', 'Announcement') }}</span></label>
+                <label><input type="radio" name="channel" value="both"> <span>{{ lang_text('Duyuru + E-posta', 'Announcement + E-mail') }}</span></label>
+                <label><input type="radio" name="channel" value="email"> <span>{{ lang_text('Yalnızca E-posta', 'E-mail only') }}</span></label>
+            </fieldset>
+        {% endif %}
 
-    <section class="notify-panel">
-        <h3>{{ lang_text('Toplu Gönderim', 'Broadcast') }}</h3>
-        <form method="post" class="notify-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="send_broadcast">
-
-            <div>
-                <label>{{ lang_text('Hedef Rol', 'Target Role') }}</label>
-                <select name="target_role">
-                    <option value="all" {% if stats.selected_role == 'all' %}selected{% endif %}>{{ lang_text('Tümü', 'All') }}</option>
-                    <option value="student" {% if stats.selected_role == 'student' %}selected{% endif %}>{{ lang_text('Öğrenci', 'Student') }}</option>
-                    <option value="teacher" {% if stats.selected_role == 'teacher' %}selected{% endif %}>{{ lang_text('Öğretmen', 'Teacher') }}</option>
-                    <option value="admin" {% if stats.selected_role == 'admin' %}selected{% endif %}>{{ lang_text('Admin', 'Admin') }}</option>
-                </select>
-            </div>
-
-            <div>
-                <label>{{ lang_text('Maks. Alıcı', 'Max Recipients') }}</label>
-                <input type="number" name="max_recipients" min="1" max="2000" value="200" required>
-            </div>
-
-            <div class="full">
-                <label>{{ lang_text('Konu', 'Subject') }}</label>
-                <input type="text" name="subject" maxlength="150" required>
-            </div>
-
-            <div class="full">
-                <label>{{ lang_text('İçerik', 'Body') }}</label>
-                <textarea name="body" rows="6" maxlength="2000" required></textarea>
-            </div>
-
-            <div class="full notify-actions">
-                <button type="submit">{{ lang_text('Toplu Gönder', 'Send Broadcast') }}</button>
-            </div>
-        </form>
-    </section>
-
-    <section class="notify-panel">
-        <h3>{{ lang_text('Test E-postası', 'Test Email') }}</h3>
-        <form method="post" class="notify-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="send_test">
-
-            <div class="full">
-                <label>{{ lang_text('Test E-posta Adresi', 'Test Email Address') }}</label>
-                <input type="email" name="test_email" maxlength="254" required>
-            </div>
-
-            <div class="full">
-                <label>{{ lang_text('Konu', 'Subject') }}</label>
-                <input type="text" name="subject" maxlength="150" required>
-            </div>
-
-            <div class="full">
-                <label>{{ lang_text('İçerik', 'Body') }}</label>
-                <textarea name="body" rows="4" maxlength="2000" required></textarea>
-            </div>
-
-            <div class="full notify-actions">
-                <button type="submit">{{ lang_text('Test Gönder', 'Send Test') }}</button>
-            </div>
-        </form>
-    </section>
-
-    <section class="notify-panel">
-        <h3>{{ lang_text('Duyuru Yayınla', 'Publish Announcement') }}</h3>
-        <form method="post" class="notify-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="publish_announcement">
-
-            <div>
-                <label>{{ lang_text('Hedef Rol', 'Target Role') }}</label>
+        <div class="cmp-row">
+            <label class="cmp-field">
+                <span>{{ lang_text('Alıcılar', 'Recipients') }}</span>
                 <select name="announcement_target_role">
-                    <option value="all">{{ lang_text('Tümü', 'All') }}</option>
-                    <option value="student">{{ lang_text('Öğrenci', 'Student') }}</option>
-                    <option value="teacher">{{ lang_text('Öğretmen', 'Teacher') }}</option>
-                    <option value="admin">{{ lang_text('Admin', 'Admin') }}</option>
+                    {% set selected_role = (a.target_role or 'all') if editing else 'all' %}
+                    {% for value, label in role_options %}
+                    <option value="{{ value }}" {% if value == selected_role %}selected{% endif %}>{{ label }} ({{ stats.role_counts[value] }})</option>
+                    {% endfor %}
+                    {% if not editing %}
+                    <option value="person">{{ lang_text('Belirli bir kişi…', 'A specific person…') }}</option>
+                    {% endif %}
                 </select>
-            </div>
-
-            <div>
-                <label>{{ lang_text('Hedef Ders', 'Target Course') }}</label>
+            </label>
+            {% if not editing %}
+            <label class="cmp-field" data-person-only hidden>
+                <span>{{ lang_text('Kişi', 'Person') }}</span>
+                <input type="text" name="recipient" list="cmp-people" autocomplete="off"
+                       placeholder="{{ lang_text('Ad veya e-posta yazın', 'Type a name or e-mail') }}">
+                <datalist id="cmp-people">
+                    {% for p in people %}<option value="{{ p.name }} <{{ p.email }}>"></option>{% endfor %}
+                </datalist>
+            </label>
+            {% endif %}
+            <label class="cmp-field" data-audience-only>
+                <span>{{ lang_text('Ders', 'Course') }}</span>
                 <select name="announcement_course_id">
-                    <option value="">{{ lang_text('Genel Duyuru', 'General Announcement') }}</option>
+                    <option value="">{{ lang_text('Genel (tüm dersler)', 'General (all courses)') }}</option>
                     {% for course in courses %}
-                    <option value="{{ course.id }}">{{ course.code }} - {{ course.title }}</option>
+                    <option value="{{ course.id }}" {% if editing and a.course_id == course.id %}selected{% endif %}>{{ course.code }} · {{ course.title }}</option>
                     {% endfor %}
                 </select>
-            </div>
-
-            <div>
-                <label>{{ lang_text('Başlangıç Zamanı', 'Start Time') }}</label>
-                <input type="datetime-local" name="announcement_starts_at">
-            </div>
-
-            <div>
-                <label>{{ lang_text('Bitiş Zamanı', 'End Time') }}</label>
-                <input type="datetime-local" name="announcement_ends_at">
-            </div>
-
-            <div class="full">
-                <label>{{ lang_text('Duyuru Başlığı', 'Announcement Title') }}</label>
-                <input type="text" name="announcement_title" maxlength="150" required>
-            </div>
-
-            <div class="full">
-                <label>{{ lang_text('Duyuru İçeriği', 'Announcement Body') }}</label>
-                <textarea name="announcement_body" rows="5" maxlength="2000" required></textarea>
-            </div>
-
-            <div class="full notify-actions">
-                <button type="submit">{{ lang_text('Duyuruyu Yayınla', 'Publish Announcement') }}</button>
-            </div>
-        </form>
-    </section>
-
-    <section class="notify-panel">
-        <h3>{{ lang_text('Son Duyurular', 'Recent Announcements') }}</h3>
-        {% if recent_announcements %}
-        <div class="announce-list">
-            {% for ann in recent_announcements %}
-            <article class="announce-item">
-                <div class="announce-head">
-                    <div class="announce-title">{{ ann.title }}</div>
-                    <span class="announce-role">{{ ann.target_role or 'all' }}</span>
-                </div>
-                <div class="announce-meta">
-                    {{ ann.author.name if ann.author else 'Admin' }} · {{ ann.created_at.strftime('%d-%m-%Y %H:%M') if ann.created_at else '-' }}
-                    {% if ann.course %} · {{ ann.course.code }} - {{ ann.course.title }}{% endif %}
-                    {% if ann.starts_at %} · {{ lang_text('Başlangıç', 'Starts') }}: {{ ann.starts_at.strftime('%d-%m-%Y %H:%M') }}{% endif %}
-                    {% if ann.ends_at %} · {{ lang_text('Bitiş', 'Ends') }}: {{ ann.ends_at.strftime('%d-%m-%Y %H:%M') }}{% endif %}
-                </div>
-                <div style="margin-top:6px; color:var(--text-soft);">{{ ann.body }}</div>
-                <form method="post" class="notify-form" style="margin-top:10px;">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="action" value="update_announcement">
-                    <input type="hidden" name="announcement_id" value="{{ ann.id }}">
-
-                    <div>
-                        <label>{{ lang_text('Hedef Rol', 'Target Role') }}</label>
-                        <select name="announcement_target_role">
-                            <option value="all" {% if (ann.target_role or 'all') == 'all' %}selected{% endif %}>{{ lang_text('Tümü', 'All') }}</option>
-                            <option value="student" {% if ann.target_role == 'student' %}selected{% endif %}>{{ lang_text('Öğrenci', 'Student') }}</option>
-                            <option value="teacher" {% if ann.target_role == 'teacher' %}selected{% endif %}>{{ lang_text('Öğretmen', 'Teacher') }}</option>
-                            <option value="admin" {% if ann.target_role == 'admin' %}selected{% endif %}>{{ lang_text('Admin', 'Admin') }}</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label>{{ lang_text('Hedef Ders', 'Target Course') }}</label>
-                        <select name="announcement_course_id">
-                            <option value="">{{ lang_text('Genel Duyuru', 'General Announcement') }}</option>
-                            {% for course in courses %}
-                            <option value="{{ course.id }}" {% if ann.course_id == course.id %}selected{% endif %}>{{ course.code }} - {{ course.title }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label>{{ lang_text('Başlangıç Zamanı', 'Start Time') }}</label>
-                        <input type="datetime-local" name="announcement_starts_at" value="{{ ann.starts_at.strftime('%Y-%m-%dT%H:%M') if ann.starts_at else '' }}">
-                    </div>
-
-                    <div>
-                        <label>{{ lang_text('Bitiş Zamanı', 'End Time') }}</label>
-                        <input type="datetime-local" name="announcement_ends_at" value="{{ ann.ends_at.strftime('%Y-%m-%dT%H:%M') if ann.ends_at else '' }}">
-                    </div>
-
-                    <div class="full">
-                        <label>{{ lang_text('Duyuru Başlığı', 'Announcement Title') }}</label>
-                        <input type="text" name="announcement_title" maxlength="150" value="{{ ann.title }}" required>
-                    </div>
-
-                    <div class="full">
-                        <label>{{ lang_text('Duyuru İçeriği', 'Announcement Body') }}</label>
-                        <textarea name="announcement_body" rows="4" maxlength="2000" required>{{ ann.body }}</textarea>
-                    </div>
-
-                    <div class="full announce-actions">
-                        <button type="submit">{{ lang_text('Güncelle', 'Update') }}</button>
-                    </div>
-                </form>
-                <form method="post" class="announce-actions">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="action" value="delete_announcement">
-                    <input type="hidden" name="announcement_id" value="{{ ann.id }}">
-                    <button type="submit">{{ lang_text('Sil', 'Delete') }}</button>
-                </form>
-            </article>
-            {% endfor %}
+            </label>
+            <label class="cmp-field" data-audience-only>
+                <span>{{ lang_text('Bölüm grubu', 'Department group') }}</span>
+                <select name="announcement_group_id">
+                    <option value="">{{ lang_text('Tüm bölümler', 'All departments') }}</option>
+                    {% for group in groups %}
+                    <option value="{{ group.id }}" {% if editing and a.group_id == group.id %}selected{% endif %}>{{ group.code }} · {{ group.name }} ({{ group.students | length }})</option>
+                    {% endfor %}
+                </select>
+            </label>
         </div>
-        {% else %}
-        <p class="notify-note">{{ lang_text('Henüz yayınlanmış duyuru yok.', 'No announcements have been published yet.') }}</p>
-        {% endif %}
-    </section>
 
-    {% if stats.sample_invalid_emails %}
-    <section class="notify-panel">
-        <h3>{{ lang_text('Geçersiz E-posta Örnekleri', 'Invalid Email Samples') }}</h3>
-        <ul class="invalid-list">
-            {% for email in stats.sample_invalid_emails %}
-                <li>{{ email }}</li>
-            {% endfor %}
-        </ul>
-    </section>
-    {% endif %}
-</div>
+        <label class="cmp-field">
+            <span data-title-label>{{ lang_text('Başlık', 'Title') }}</span>
+            <input type="text" name="announcement_title" maxlength="150" value="{{ a.title if editing else '' }}" required>
+        </label>
+        <label class="cmp-field">
+            <span>{{ lang_text('İçerik', 'Message') }}</span>
+            <textarea name="announcement_body" rows="6" maxlength="2000" required>{{ a.body if editing else '' }}</textarea>
+        </label>
+
+        <details class="cmp-advanced" {% if editing and (a.starts_at or a.ends_at) %}open{% endif %}>
+            <summary>{{ lang_text('Gelişmiş seçenekler', 'Advanced options') }}</summary>
+            <div class="cmp-row">
+                <label class="cmp-field">
+                    <span>{{ lang_text('Yayın başlangıcı', 'Visible from') }}</span>
+                    <input type="datetime-local" name="announcement_starts_at" value="{{ a.starts_at.strftime('%Y-%m-%dT%H:%M') if editing and a.starts_at else '' }}">
+                </label>
+                <label class="cmp-field">
+                    <span>{{ lang_text('Yayın bitişi', 'Visible until') }}</span>
+                    <input type="datetime-local" name="announcement_ends_at" value="{{ a.ends_at.strftime('%Y-%m-%dT%H:%M') if editing and a.ends_at else '' }}">
+                </label>
+                {% if not editing %}
+                <label class="cmp-field">
+                    <span>{{ lang_text('E-posta alıcı sınırı', 'E-mail recipient limit') }}</span>
+                    <input type="number" name="max_recipients" min="1" max="2000" value="200">
+                </label>
+                {% endif %}
+            </div>
+            <p class="cmp-hint">{{ lang_text('Boş bırakılırsa duyuru hemen yayınlanır ve süresiz kalır. Ders seçilirse e-posta yalnızca o dersin öğrencilerine ve öğretmenine, bölüm grubu seçilirse yalnızca o grubun öğrencilerine gider.', 'Leave empty to publish now with no end date. With a course selected, e-mails go only to its students and teacher; with a department group, only to that group.') }}</p>
+        </details>
+
+        <div class="cmp-footer">
+            <span class="cmp-status">
+                {{ lang_text('E-posta modu', 'E-mail mode') }}:
+                <strong>{{ lang_text('Deneme (gönderilmez)', 'Dry run (not sent)') if stats.dry_run else lang_text('Canlı', 'Live') }}</strong>
+                {% if stats.invalid_email_count %}
+                · <span title="{{ stats.sample_invalid_emails | join(', ') }}">{{ stats.invalid_email_count }} {{ lang_text('geçersiz e-posta adresi', 'invalid e-mail addresses') }}</span>
+                {% endif %}
+            </span>
+            <div class="cmp-actions">
+                {% if editing %}
+                <a class="cmp-cancel" href="{{ url_for('announcements_inbox', box='sent', id=a.id) }}">{{ lang_text('Vazgeç', 'Cancel') }}</a>
+                <button type="submit">{{ lang_text('Kaydet', 'Save') }}</button>
+                {% else %}
+                <button type="submit">{{ lang_text('Gönder', 'Send') }}</button>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+</section>
+
+{% if not editing %}
+<script>
+    // "A specific person" swaps the audience fields (course, group) for a person picker.
+    (function () {
+        var target = document.querySelector('select[name="announcement_target_role"]');
+        var person = document.querySelector('[data-person-only]');
+        var audienceOnly = document.querySelectorAll('[data-audience-only]');
+        var titleLabel = document.querySelector('[data-title-label]');
+        if (!target || !person) return;
+        function sync() {
+            var isPerson = target.value === 'person';
+            person.hidden = !isPerson;
+            person.querySelector('input').required = isPerson;
+            audienceOnly.forEach(function (el) { el.hidden = isPerson; });
+            if (titleLabel) titleLabel.textContent = isPerson ? '{{ lang_text('Konu', 'Subject') }}' : '{{ lang_text('Başlık', 'Title') }}';
+        }
+        target.addEventListener('change', sync);
+        sync();
+    })();
+</script>
+{% endif %}
 {% endblock %}

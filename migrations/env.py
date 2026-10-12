@@ -1,5 +1,3 @@
-import os
-from pathlib import Path
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -7,6 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 
+from env_config import load_dotenv, resolve_database_url
 from models import db
 
 # this is the Alembic Config object, which provides
@@ -15,17 +14,9 @@ config = context.config
 
 
 def _resolve_database_url() -> str:
-    # Prefer app/runtime URL first, then explicit migration URL for rehearsal.
-    env_url = os.getenv('DATABASE_URL') or os.getenv('ALEMBIC_DB_URL')
-    if env_url:
-        if env_url.startswith('postgres://'):
-            return env_url.replace('postgres://', 'postgresql://', 1)
-        return env_url
-
-    # Default to local SQLite database currently used by the app.
-    project_root = Path(__file__).resolve().parents[1]
-    sqlite_path = project_root / 'instance' / 'attendance.db'
-    return f"sqlite:///{sqlite_path.as_posix()}"
+    # Same source as the app: DATABASE_URL from the environment or the project .env file.
+    load_dotenv()
+    return resolve_database_url()
 
 
 config.set_main_option('sqlalchemy.url', _resolve_database_url())

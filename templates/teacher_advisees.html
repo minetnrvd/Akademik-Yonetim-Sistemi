@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}{{ lang_text('Öğrenciler ve Danışmanlık', 'Students and Advising') }}{% endblock %}
+
+{% block content %}
+<div class="pv-pagehead">
+    <div>
+        <h1>{{ lang_text('Öğrenciler ve Danışmanlık', 'Students and Advising') }}</h1>
+        <p class="reg-welcome">{{ lang_text('Öğrenci adı veya numarasını yaz; öğrencinin sayfasını aç.', 'Type a student name or number and open their pages.') }}</p>
+    </div>
+</div>
+
+<section class="cmp-card">
+    {% if rows %}
+    <div class="adv-toolbar">
+        <div class="cmp-field adv-search">
+            <input type="search" id="advisee-search" autocomplete="off" autofocus
+                   placeholder="{{ lang_text('Öğrenci adı veya numarası ile ara…', 'Search by student name or number…') }}"
+                   aria-label="{{ lang_text('Öğrenci ara', 'Search students') }}">
+        </div>
+        <label class="adv-mine">
+            <input type="checkbox" id="advisee-mine">
+            {{ lang_text('Yalnızca danışmanı olduğum öğrenciler', 'Only my advisees') }}
+        </label>
+    </div>
+    <table class="data-table" id="advisee-table">
+        <thead>
+            <tr>
+                <th>{{ lang_text('Öğrenci', 'Student') }}</th>
+                <th>{{ lang_text('No', 'Number') }}</th>
+                <th>{{ lang_text('Bölüm', 'Department') }}</th>
+                <th>{{ lang_text('Danışman', 'Advisor') }}</th>
+                <th>{{ lang_text('Not Ort. (4.00)', 'GPA (4.00)') }}</th>
+                <th>{{ lang_text('Devamsızlık Riski', 'Attendance Risk') }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr data-search="{{ row.name }} {{ row.student.student_number }}" data-mine="{{ '1' if row.is_mine else '0' }}">
+                <td>{{ row.name }}{% if row.is_mine %} <span class="pv-status ok"><span class="pv-dot"></span>{{ lang_text('Danışanım', 'My advisee') }}</span>{% endif %}</td>
+                <td>{{ row.student.student_number }}</td>
+                <td>{{ row.groups or '-' }}</td>
+                <td>{{ row.advisor_name or '-' }}</td>
+                <td>{{ '%.2f' % row.gpa if row.gpa is not none else '-' }}</td>
+                <td>
+                    {% if row.risk_count %}
+                    <span class="pv-status warn"><span class="pv-dot"></span>{{ row.risk_count }} {{ lang_text('ders', 'courses') }}</span>
+                    {% else %}-{% endif %}
+                </td>
+                <td class="adv-actions">
+                    <form method="post" action="{{ url_for('teacher_view_student', student_id=row.student.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="mb-btn">{{ lang_text('Öğrenci sayfasını aç', 'Open student view') }}</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p id="advisee-empty" hidden>{{ lang_text('Aramayla eşleşen öğrenci yok.', 'No students match your search.') }}</p>
+    {% else %}
+    <p>{{ lang_text('Sistemde henüz öğrenci yok.', 'There are no students yet.') }}</p>
+    {% endif %}
+</section>
+
+{% if rows %}
+<style>
+    .adv-toolbar { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: .75rem; }
+    .adv-search { flex: 1 1 18rem; margin: 0; }
+    .adv-search input { width: 100%; }
+    .adv-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+    .adv-actions form { margin: 0; }
+    .adv-actions .mb-btn { white-space: nowrap; }
+</style>
+<script>
+(function () {
+    var input = document.getElementById('advisee-search');
+    var mine = document.getElementById('advisee-mine');
+    var rows = document.querySelectorAll('#advisee-table tbody tr');
+    var empty = document.getElementById('advisee-empty');
+    function fold(v) {
+        return (v || '').toLocaleLowerCase('tr').replace(/ı/g, 'i')
+            .normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    }
+    function apply() {
+        var terms = fold(input.value).split(/\s+/).filter(Boolean);
+        var visible = 0;
+        rows.forEach(function (row) {
+            var hay = fold(row.dataset.search);
+            var show = terms.every(function (t) { return hay.indexOf(t) !== -1; })
+                && (!mine.checked || row.dataset.mine === '1');
+            row.hidden = !show;
+            if (show) visible++;
+        });
+        empty.hidden = visible !== 0;
+    }
+    input.addEventListener('input', apply);
+    mine.addEventListener('change', apply);
+    // Enter opens the student view when the search narrows down to exactly one student.
+    input.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        var shown = Array.prototype.filter.call(rows, function (r) { return !r.hidden; });
+        if (shown.length === 1) { e.preventDefault(); shown[0].querySelector('form').submit(); }
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

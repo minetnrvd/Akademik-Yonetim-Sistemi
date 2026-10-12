@@ -3,6 +3,7 @@
 {% block title %}{{ lang_text('İzin Matrisi', 'Permission Matrix') }}{% endblock %}
 
 {% block content %}
+{% include '_audit_tabs.html' %}
 <style>
     .matrix-shell { display: flex; flex-direction: column; gap: 20px; }
 
@@ -149,7 +150,7 @@
 <div class="matrix-shell">
 
     <div class="matrix-topbar">
-        <h1>{{ lang_text('İzin Matrisi', 'Permission Matrix') }}</h1>
+        <h2 class="audit-section-title">{{ lang_text('İzin Matrisi', 'Permission Matrix') }}</h2>
         <a href="{{ url_for('admin_dashboard') }}"><button type="button">← {{ lang_text('Admin Paneli', 'Dashboard') }}</button></a>
     </div>
 
@@ -211,7 +212,7 @@
     <!-- Endpoint map -->
     <div>
         <div class="section-header">
-            <h2>{{ lang_text('Endpoint -> Izin Eslesmesi', 'Endpoint -> Permission Mapping') }}</h2>
+            <h2>{{ lang_text('Endpoint -> İzin Eşleşmesi', 'Endpoint -> Permission Mapping') }}</h2>
             <div class="section-divider"></div>
         </div>
         <div class="endpoint-wrap">

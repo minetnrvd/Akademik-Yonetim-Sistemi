@@ -3,6 +3,7 @@
 {% block title %}{{ lang_text('Yetki Red Raporu', 'Permission Audit') }}{% endblock %}
 
 {% block content %}
+{% include '_audit_tabs.html' %}
 <style>
     .audit-shell {
         display: flex;
@@ -97,7 +98,7 @@
 
 <div class="audit-shell">
     <div class="audit-top">
-        <h1>{{ lang_text('Yetki Red Raporu', 'Permission Audit Report') }}</h1>
+        <h2 class="audit-section-title">{{ lang_text('Yetki Red Raporu', 'Permission Audit Report') }}</h2>
         <a href="{{ url_for('admin_dashboard') }}"><button type="button">← {{ lang_text('Admin Paneli', 'Admin Dashboard') }}</button></a>
     </div>
 

@@ -1,0 +1,18 @@
+{# Shared header for the admin audit pages: one "Audit" area with a tab per report. #}
+{% set audit_tabs = [
+    ('admin_health_status_report', lang_text('Genel Bakış', 'Overview')),
+    ('admin_operation_audit_report', lang_text('İşlem Kaydı', 'Operation Log')),
+    ('admin_permission_audit_report', lang_text('Erişim İhlalleri', 'Access Violations')),
+    ('admin_permission_matrix', lang_text('Yetki Tablosu', 'Permission Matrix')),
+] %}
+<div class="mb-head">
+    <div>
+        <h1>{{ lang_text('Denetim', 'Audit') }}</h1>
+        <p>{{ lang_text('Sistem durumu, yönetici işlemleri, reddedilen erişimler ve rol yetkileri.', 'System health, admin actions, denied access and role permissions.') }}</p>
+    </div>
+</div>
+<nav class="mb-tabs" aria-label="{{ lang_text('Denetim bölümleri', 'Audit sections') }}">
+    {% for endpoint, label in audit_tabs %}
+    <a href="{{ url_for(endpoint) }}" {% if request.endpoint == endpoint %}aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+</nav>

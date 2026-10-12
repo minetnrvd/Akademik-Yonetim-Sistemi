@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}{{ t('attendance_history') }}{% endblock %}
 
@@ -201,7 +201,7 @@
                 <th>{{ t('present') }}</th>
                 <th>{{ t('total') }}</th>
                 <th class="action-head">{{ t('detail') }}</th>
-                <th class="action-head">{{ t('delete') }}</th>
+                {% if nav_role == 'teacher' %}<th class="action-head">{{ t('delete') }}</th>{% endif %}
             </tr>
         </thead>
         <tbody>
@@ -214,11 +214,13 @@
                 <td class="action-cell">
                     <a href="{{ url_for('session_detail', session_id=sess.id) }}"><button class="action-btn">{{ t('detail') }}</button></a>
                 </td>
+                {% if nav_role == 'teacher' %}
                 <td class="action-cell">
-                    <form class="action-form" method="post" action="{{ url_for('delete_session', session_id=sess.id) }}" onsubmit="return confirm('{{ t('confirm_delete_attendance_session') }}');">
-                        <button class="action-btn" type="submit" style="background:rgba(29,79,151,0.34); border-color:rgba(216,183,90,0.5); color:#ecf3ff;">{{ t('delete') }}</button>
+                    <form class="action-form" method="post" action="{{ url_for('delete_session', session_id=sess.id) }}" data-confirm="{{ t('confirm_delete_attendance_session') }}">
+                        <button class="action-btn btn-danger" type="submit">{{ t('delete') }}</button>
                     </form>
                 </td>
+                {% endif %}
             </tr>
             {% endfor %}
         </tbody>

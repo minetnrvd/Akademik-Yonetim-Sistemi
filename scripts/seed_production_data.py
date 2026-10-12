@@ -4,11 +4,14 @@ Seed Scripti — Üretim benzeri demo verisi
 1. @example.com kullanıcılarını ve bağlı tüm verileri siler
 2. 100 öğretmen + 350 öğrenci oluşturur (gerçek Türk isimleri)
 3. Her öğretmene 2-4 ders atar; her öğrenciyi 2-4 derse kaydeder
+4. Sabit demo hesapları oluşturur (DEMO_ACCOUNTS: admin / öğretmen / öğrenci)
 
 Çalıştırma:
-    .venv\Scripts\python.exe scripts/seed_production_data.py
+    .venv\Scripts\python.exe scripts/seed_production_data.py          # onay sorar
+    .venv\Scripts\python.exe scripts/seed_production_data.py --yes    # onay sormadan
 """
 
+import argparse
 import sys
 import random
 import datetime
@@ -16,6 +19,8 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
+# Progress output uses → / ✓; keep it printable on Windows code pages and when redirected.
+sys.stdout.reconfigure(encoding="utf-8")
 
 from app import app, db
 from models import (
@@ -456,10 +461,48 @@ def create_students(n: int = 350, classes: list[Class] = None) -> list[User]:
     return students
 
 
+DEMO_ACCOUNTS = {
+    "admin": ("demo.admin@kyrenia.edu.tr", "Admin.12345", "Demo Admin"),
+    "teacher": ("demo.ogretmen@kyrenia.edu.tr", "Ogretmen.123", "Dr. Demo Öğretmen"),
+    "student": ("demo.ogrenci@std.kyrenia.edu.tr", "Ogrenci.123", "Demo Öğrenci"),
+}
+
+
+def create_demo_accounts() -> dict[str, User]:
+    """Fixed, documented login accounts (one per role); existing ones are reused."""
+    print("→ Demo hesapları hazırlanıyor…")
+    accounts = {}
+    for role, (email, password, name) in DEMO_ACCOUNTS.items():
+        user = User.query.filter_by(email=email).first()
+        if user is None:
+            user = User(name=name, email=email, password_hash=generate_password_hash(password), role=role, is_locked=False)
+            db.session.add(user)
+            db.session.flush()
+        _used_emails.add(email)
+        accounts[role] = user
+
+    student_user = accounts["student"]
+    if db.session.get(Student, student_user.id) is None:
+        db.session.add(Student(
+            id=student_user.id,
+            student_number=_unique_student_number(2024),
+            first_name="Demo",
+            last_name="Öğrenci",
+            university_department=BOLUMLER[0],
+        ))
+        db.session.flush()
+    print("  ✓ Demo hesapları hazır.")
+    return accounts
+
+
 # -------------------------------------------------------------------
 # ANA AKIŞ
 # -------------------------------------------------------------------
 def main():
+    parser = argparse.ArgumentParser(description="Demo verisi: 100 öğretmen + 350 öğrenci + sabit demo hesapları.")
+    parser.add_argument("--yes", action="store_true", help="Onay sormadan çalıştır.")
+    args = parser.parse_args()
+
     with app.app_context():
         # Korunan kullanıcıları göster
         real_users = User.query.filter(~User.email.like('%@example.com')).all()
@@ -468,15 +511,26 @@ def main():
             print(f"  [{u.role}] {u.email} — {u.name}")
         print()
 
-        onay = input("Test verilerini sil ve 100 öğretmen + 350 öğrenci oluştur? (evet/hayır): ").strip().lower()
-        if onay != "evet":
-            print("İptal edildi.")
-            return
+        if not args.yes:
+            onay = input("Test verilerini sil ve 100 öğretmen + 350 öğrenci oluştur? (evet/hayır): ").strip().lower()
+            if onay != "evet":
+                print("İptal edildi.")
+                return
 
         purge_test_data()
+        # Mevcut kayıtlarla çakışmayı önle (script tekrar çalıştırılabilir).
+        _used_emails.update(email for (email,) in db.session.query(User.email))
+        _used_student_numbers.update(num for (num,) in db.session.query(Student.student_number))
+
+        demo = create_demo_accounts()
         teachers = create_teachers(100)
-        classes = create_classes(teachers)
+        classes = create_classes([demo["teacher"]] + teachers)
         create_students(350, classes)
+
+        demo_student = db.session.get(Student, demo["student"].id)
+        for klass in classes:
+            if klass.teacher_id == demo["teacher"].id and klass not in demo_student.classes:
+                demo_student.classes.append(klass)
 
         db.session.commit()
 
@@ -489,8 +543,11 @@ def main():
         print(f"  Admin    : {User.query.filter_by(role='admin').count()}")
         print(f"  Ders     : {Class.query.count()}")
         print("=" * 50)
-        print("Tüm öğretmen şifresi : Ogretmen.123")
-        print("Tüm öğrenci şifresi  : Ogrenci.123")
+        print("Demo hesapları:")
+        for role, (email, password, _) in DEMO_ACCOUNTS.items():
+            print(f"  {role:8} {email}  /  {password}")
+        print("Diğer tüm öğretmenlerin şifresi : Ogretmen.123")
+        print("Diğer tüm öğrencilerin şifresi  : Ogrenci.123")
 
 
 if __name__ == "__main__":

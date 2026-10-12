@@ -1,0 +1,1006 @@
+{% extends "base.html" %}
+{# Shared home page for every role: profile card | calendar | weather + announcements. #}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+
+<style>
+    .t-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .t-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .t-top h1 { margin: 0; }
+
+    .t-sub {
+        margin: 0;
+        color: var(--text-soft);
+        font-size: 14px;
+    }
+
+    .t-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .summary-card {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 14px 16px;
+        background: rgba(255,255,255,0.04);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .summary-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        border-radius: 16px 16px 0 0;
+    }
+
+    .summary-card.blue::before { background: linear-gradient(90deg, #2d6fd4, #5a9cf5); }
+    .summary-card.green::before { background: linear-gradient(90deg, #2a9d5c, #5abf80); }
+    .summary-card.amber::before { background: linear-gradient(90deg, #c8822a, #e8b45a); }
+
+    .summary-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-soft);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .summary-value {
+        margin-top: 4px;
+        font-size: 26px;
+        font-weight: 700;
+        color: var(--moonbeam);
+        line-height: 1;
+    }
+
+    .summary-sub {
+        margin-top: 3px;
+        font-size: 12px;
+        color: var(--text-soft);
+        opacity: 0.75;
+    }
+
+    .t-layout {
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr);
+        gap: 14px;
+        align-items: start;
+    }
+
+    .t-sidebar {
+        position: sticky;
+        top: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .sidebar-label {
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text-soft);
+        text-transform: uppercase;
+        letter-spacing: 0.7px;
+        padding: 4px 6px 2px;
+        opacity: 0.7;
+    }
+
+    .nav-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 11px 14px;
+        background: rgba(255,255,255,0.04);
+        transition: background 0.18s ease, border-color 0.18s ease, transform 0.15s ease;
+    }
+
+    .nav-card:hover {
+        background: rgba(29,79,151,0.18);
+        border-color: rgba(93,147,220,0.5);
+        transform: translateY(-1px);
+        text-decoration: none;
+    }
+
+    .nav-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        flex-shrink: 0;
+    }
+
+    .nav-icon.blue { background: rgba(45,111,212,0.2); }
+    .nav-icon.green { background: rgba(42,157,92,0.2); }
+    .nav-icon.amber { background: rgba(200,130,42,0.2); }
+    .nav-icon.red { background: rgba(192,57,43,0.2); }
+    .nav-icon.purple { background: rgba(128,74,196,0.2); }
+
+    .nav-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .nav-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .nav-desc {
+        font-size: 11px;
+        color: var(--text-soft);
+        opacity: 0.75;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .t-main {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .t-with-side { display: grid; grid-template-columns: 17rem minmax(0, 1fr) 17rem; gap: 14px; align-items: start; }
+    .tp-content { min-width: 0; }
+    .tp-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    html[data-theme] .tp-col .weather-form { display: flex; gap: 6px; align-items: stretch; }
+    html[data-theme] .tp-col .weather-form input { flex: 1; min-width: 0; }
+    html[data-theme] .tp-col .weather-form button { flex: none; width: auto; }
+    .tp-side { padding: .85rem .8rem; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); text-align: center; }
+    .tp-photo { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; display: block; margin: .15rem auto .5rem; }
+    .tp-initials { display: flex; align-items: center; justify-content: center; background: #1b3b63; color: #fff; font-size: 1.8rem; font-weight: 700; }
+    .tp-name { font-weight: 700; font-size: 1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--line); }
+    .tp-facts { margin: 0; text-align: left; font-size: .82rem; display: grid; gap: .1rem; padding-top: .4rem; }
+    .tp-facts dt { opacity: .6; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; margin-top: .45rem; }
+    .tp-facts dd { margin: 0; overflow-wrap: anywhere; }
+    .tp-stats { display: flex; justify-content: space-around; gap: 6px; margin-top: .8rem; padding-top: .6rem; border-top: 1px solid var(--line); }
+    .tp-stats strong { display: block; font-size: 1.25rem; }
+    .tp-stats span { font-size: .68rem; opacity: .65; text-transform: uppercase; letter-spacing: .03em; }
+    .tp-edit { display: inline-block; margin-top: .7rem; font-size: .8rem; font-weight: 600; text-decoration: none; }
+    @media (max-width: 1200px) {
+        .t-with-side { grid-template-columns: 17rem minmax(0, 1fr); }
+        .tp-right { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 960px) {
+        .t-with-side { grid-template-columns: minmax(0, 1fr); }
+        .tp-right { grid-template-columns: minmax(0, 1fr); }
+    }
+    html[data-theme] .tp-content .cal-days { gap: 4px; }
+    html[data-theme] .tp-content .cal-day,
+    html[data-theme] .tp-content .day-cell { min-height: 44px; font-size: 13px; }
+    .ann-compact { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+    .ann-compact li { padding: 7px 0; border-top: 1px solid var(--line); }
+    .ann-compact li:first-child { border-top: 0; padding-top: 0; }
+    .ann-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+    .ann-head span { color: var(--text-soft); font-size: 11px; white-space: nowrap; }
+    .ann-body { font-size: 12px; color: var(--text-soft); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .ann-meta { font-size: 11px; color: var(--text-soft); }
+    .ann-all { font-size: 12px; font-weight: 600; text-decoration: none; }
+
+    .top-pair {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+    }
+
+    .t-card {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px 16px;
+        background: rgba(255,255,255,0.04);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .t-card h2 {
+        margin: 0;
+        color: var(--moonbeam);
+        font-size: 17px;
+    }
+
+    .weather-form {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .weather-form input {
+        flex: 1;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,0.06);
+        color: var(--text);
+        font-size: 13px;
+    }
+
+    .weather-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .w-stat {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+    }
+
+    .w-label { font-size: 11px; color: var(--text-soft); }
+    .w-val { font-size: 16px; font-weight: 700; color: var(--moonbeam); }
+
+    .cal-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .cal-toolbar h4 {
+        margin: 0;
+        color: var(--moonbeam);
+        font-size: 14px;
+    }
+
+    .cal-view {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255,255,255,0.02);
+        padding: 10px;
+    }
+
+    .cal-weekdays,
+    .cal-days {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 4px;
+    }
+
+    .cal-weekdays span {
+        text-align: center;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text-soft);
+        padding: 4px 0;
+    }
+
+    .cal-day {
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        border-radius: 8px;
+        color: var(--text-soft);
+        cursor: default;
+    }
+
+    .cal-day.today {
+        background: rgba(29,79,151,0.4);
+        color: #a8c7ff;
+        font-weight: 700;
+        border: 1px solid rgba(93,147,220,0.5);
+    }
+
+    .cal-day.muted { color: rgba(255,255,255,0.15); }
+
+    .quick-note {
+        border: 1px solid rgba(42,157,92,0.3);
+        background: rgba(42,157,92,0.07);
+        border-radius: 14px;
+        padding: 10px 12px;
+        color: var(--text-soft);
+        font-size: 13px;
+    }
+
+    .announcement-list {
+        margin: 0;
+        padding-left: 18px;
+        display: grid;
+        gap: 8px;
+    }
+
+    .announcement-meta {
+        font-size: 12px;
+        color: var(--text-soft);
+    }
+
+    .student-lookup-form {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .student-lookup-form input {
+        flex: 1;
+        min-width: 180px;
+    }
+
+    .lookup-result {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+    }
+
+    .lookup-title {
+        margin: 0;
+        font-size: 15px;
+        color: var(--moonbeam);
+    }
+
+    .lookup-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .lookup-stat {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.02);
+        padding: 8px;
+    }
+
+    .lookup-stat-label {
+        font-size: 11px;
+        color: var(--text-soft);
+    }
+
+    .lookup-stat-value {
+        margin-top: 2px;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--moonbeam);
+    }
+
+    .lookup-subtitle {
+        margin: 0;
+        font-size: 13px;
+        color: var(--text-soft);
+        font-weight: 700;
+    }
+
+    .lookup-contact {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .lookup-contact-item {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .lookup-table-wrap {
+        overflow-x: auto;
+    }
+
+    .lookup-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 760px;
+    }
+
+    .lookup-table th,
+    .lookup-table td {
+        border-bottom: 1px solid var(--line);
+        padding: 8px;
+        font-size: 12px;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .lookup-table th {
+        color: var(--text-soft);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        font-size: 11px;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 2px 8px;
+        border: 1px solid var(--line);
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .status-pill.pass {
+        border-color: rgba(42,157,92,0.6);
+        color: #bdebcf;
+        background: rgba(42,157,92,0.14);
+    }
+
+    .status-pill.fail {
+        border-color: rgba(192,57,43,0.6);
+        color: #ffc3bb;
+        background: rgba(192,57,43,0.14);
+    }
+
+    .status-pill.pending {
+        border-color: rgba(216,183,90,0.6);
+        color: #f6ebc8;
+        background: rgba(216,183,90,0.14);
+    }
+
+    .day-editor {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 10px;
+    }
+
+    .day-editor-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+    }
+
+    .day-editor-title {
+        margin: 0;
+        color: var(--moonbeam);
+        font-size: 15px;
+    }
+
+    .plus-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 1px solid rgba(143, 184, 255, 0.45);
+        background: rgba(61, 106, 176, 0.25);
+        color: #eaf2ff;
+        font-size: 20px;
+        line-height: 1;
+        padding: 0;
+    }
+
+    .day-add-form {
+        display: none;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .day-add-form.open {
+        display: grid;
+    }
+
+    .day-add-form input,
+    .day-add-form select,
+    .day-add-form textarea {
+        width: 100%;
+    }
+
+    .event-item {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.03);
+        list-style: none;
+        margin-bottom: 8px;
+    }
+
+    .event-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .chip-tag {
+        border: 1px solid rgba(216, 183, 90, 0.5);
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 11px;
+        color: #f6ebc8;
+    }
+
+    .event-delete-form {
+        margin-top: 8px;
+    }
+
+    .day-cell {
+        min-height: 68px;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        padding: 6px;
+        font-size: 12px;
+        background: rgba(255,255,255,0.02);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        position: relative;
+        cursor: pointer;
+        transition: border-color 0.16s ease, background-color 0.16s ease;
+    }
+
+    .day-cell.selected {
+        border-color: rgba(143, 184, 255, 0.85);
+        background: rgba(61, 106, 176, 0.2);
+    }
+
+    .day-num { font-weight: 700; }
+
+    .day-dots {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .dot.exam { background: #d8b75a; }
+    .dot.activity { background: #8fb8ff; }
+
+    .today-badge {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        font-size: 10px;
+        border: 1px solid rgba(216, 183, 90, 0.6);
+        border-radius: 999px;
+        padding: 0 5px;
+        color: #f6ebc8;
+        background: rgba(216, 183, 90, 0.14);
+    }
+
+    @media (max-width: 960px) {
+        .t-layout { grid-template-columns: 1fr; }
+        .t-sidebar { position: static; }
+        .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .top-pair { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 560px) {
+        .summary-grid { grid-template-columns: 1fr 1fr; }
+        .lookup-grid { grid-template-columns: 1fr; }
+        .lookup-contact { grid-template-columns: 1fr; }
+    }
+
+    /* Weather card: glass card with a drifting accent blob behind it. */
+    .wx-container { position: relative; isolation: isolate; display: flex; justify-content: center; padding: 6px 0 4px; }
+    .wx-container::before {
+        content: ""; position: absolute; z-index: -1; width: 110px; height: 110px; border-radius: 50%;
+        background: rgb(144, 161, 255); left: 52%; top: 40px; transition: transform 1s;
+    }
+    .wx-container:hover::before { transform: translate(-60px, 60px); }
+    html[data-theme] .wx-card {
+        position: relative; width: 100%; min-height: 250px; box-sizing: border-box; cursor: default;
+        display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+        padding: 20px 10px; border-radius: 14px;
+        backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+        background-color: color-mix(in srgb, var(--pv-card) 62%, transparent);
+        border: 1px solid var(--pv-line);
+        box-shadow: var(--pv-card-shadow);
+    }
+    .wx-card p { margin: 0; }
+    html[data-theme] .wx-city { font-weight: 700; font-size: .95em; letter-spacing: 1.2px; color: var(--pv-heading); text-align: center; }
+    html[data-theme] .wx-cond { font-weight: 500; font-size: .72em; letter-spacing: 1.2px; color: var(--pv-text-faint); text-align: center; }
+    .wx-icon { font-size: 44px; line-height: 1; }
+    html[data-theme] .wx-temp { font-size: 2em; font-weight: 600; color: var(--pv-heading); }
+    .wx-minmax { width: 100%; display: flex; align-items: center; justify-content: space-between; }
+    .wx-min, .wx-max { width: 50%; display: flex; flex-direction: column; justify-content: center; padding: 0 20px; gap: 4px; box-sizing: border-box; }
+    .wx-min { align-items: flex-end; }
+    html[data-theme] .wx-max { align-items: flex-start; border-left: 2px solid var(--pv-line-strong); }
+    html[data-theme] .wx-label { font-size: .72em; font-weight: 600; color: var(--pv-heading); }
+    html[data-theme] .wx-value { font-size: .68em; font-weight: 500; color: var(--pv-text-faint); }
+    @media (prefers-reduced-motion: reduce) { .wx-container::before { transition: none; } }
+</style>
+
+<div class="t-shell">
+    <div class="t-top">
+        <div>
+            <h1>{{ page_title }}</h1>
+            <p class="t-sub">{{ lang_text('Hoş geldin, ', 'Welcome, ') }}{{ user_name }}</p>
+        </div>
+    </div>
+
+    <div class="t-layout">
+        <div class="t-main">
+            <div class="t-with-side">
+            <div class="tp-col">
+            {% if profile %}
+            {% set tp = profile %}
+            <aside class="tp-side" aria-label="{{ lang_text('Hesap bilgileri', 'Account information') }}">
+                {% if tp.photo_url %}
+                <img class="tp-photo" src="{{ tp.photo_url }}" alt="{{ tp.name }}">
+                {% else %}
+                <div class="tp-photo tp-initials" aria-hidden="true">{{ tp.initials }}</div>
+                {% endif %}
+                <div class="tp-name">{% if tp.title %}{{ tp.title }} {% endif %}{{ tp.name }}</div>
+                <dl class="tp-facts">
+                    {% for label, value in tp.facts %}
+                    <dt>{{ label }}</dt><dd>{{ value }}</dd>
+                    {% endfor %}
+                </dl>
+                {% if tp.stats %}
+                <div class="tp-stats">
+                    {% for value, label in tp.stats %}
+                    <div><strong>{{ value }}</strong><span>{{ label }}</span></div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <a class="tp-edit" href="{{ tp.edit_url }}">{{ lang_text('Profili düzenle', 'Edit profile') }}</a>
+            </aside>
+            {% endif %}
+            </div>
+            <div class="tp-content">
+                <article class="t-card">
+                    <h2>{{ lang_text('Takvim', 'Calendar') }}</h2>
+                    <p class="announcement-meta" style="margin-top:0;">{{ upcoming_event_count }} {{ lang_text('yaklaşan öğe', 'upcoming items') }}</p>
+                    <div class="cal-toolbar">
+                        <button type="button" id="cal-prev">‹ {{ lang_text('Önceki', 'Previous') }}</button>
+                        <h4 id="cal-title"></h4>
+                        <button type="button" id="cal-next">{{ lang_text('Sonraki', 'Next') }} ›</button>
+                    </div>
+                    <div class="cal-view">
+                        <div class="cal-weekdays" id="cal-weekdays"></div>
+                        <div class="cal-days" id="cal-days"></div>
+                    </div>
+
+                    <div class="day-editor" id="teacher-day-editor">
+                        <div class="day-editor-top">
+                            <h4 class="day-editor-title" id="teacher-selected-day-label">{{ lang_text('Takvimden bir gün seçin.', 'Select a day from the calendar.') }}</h4>
+                            <button type="button" class="plus-btn" id="teacher-open-day-add" title="{{ lang_text('Öğe ekle', 'Add item') }}">+</button>
+                        </div>
+
+                        <form method="post" action="{{ dashboard_url }}" class="day-add-form" id="teacher-day-add-form">
+                            <input type="hidden" name="action" value="add_calendar_event">
+                            <input type="hidden" name="event_date" id="teacher-selected-day-input">
+                            <input type="text" name="title" placeholder="{{ lang_text('Başlık', 'Title') }}" required>
+                            <select name="event_type" required>
+                                <option value="exam">{{ lang_text('Sınav', 'Exam') }}</option>
+                                <option value="activity">{{ lang_text('Etkinlik', 'Activity') }}</option>
+                            </select>
+                            <textarea name="note" rows="3" placeholder="{{ lang_text('İsteğe bağlı not', 'Optional note') }}"></textarea>
+                            <button type="submit">{{ lang_text('Takvime ekle', 'Add to calendar') }}</button>
+                        </form>
+
+                        <div id="teacher-day-event-list"></div>
+                    </div>
+                </article>
+            </div>
+            <div class="tp-col tp-right">
+                    {# Location is picked up automatically (see script below); wttr.in weather codes pick the icon. #}
+                    <form id="auto-weather-form" method="get" action="{{ dashboard_url }}" hidden>
+                        <input type="hidden" id="auto-lat" name="lat">
+                        <input type="hidden" id="auto-lon" name="lon">
+                    </form>
+                    {% if weather %}
+                    {% set wcode = (weather.code or '')|string %}
+                    {% if wcode == '113' %}{% set wicon = '☀️' %}
+                    {% elif wcode == '116' %}{% set wicon = '⛅' %}
+                    {% elif wcode in ('119', '122') %}{% set wicon = '☁️' %}
+                    {% elif wcode in ('143', '248', '260') %}{% set wicon = '🌫️' %}
+                    {% elif wcode in ('200', '386', '389', '392', '395') %}{% set wicon = '⛈️' %}
+                    {% elif wcode in ('179', '182', '185', '227', '230', '281', '284', '317', '320', '323', '326', '329', '332', '335', '338', '350', '362', '365', '368', '371', '374', '377') %}{% set wicon = '❄️' %}
+                    {% elif wcode %}{% set wicon = '🌧️' %}
+                    {% else %}{% set wicon = '🌡️' %}{% endif %}
+                    <div class="wx-container">
+                        <article class="wx-card" aria-label="{{ lang_text('Hava durumu', 'Weather') }}">
+                            <p class="wx-city">{{ weather.city|upper }}</p>
+                            <p class="wx-cond">{{ weather.condition|upper }}</p>
+                            <span class="wx-icon" aria-hidden="true">{{ wicon }}</span>
+                            <p class="wx-temp">{{ weather.temperature_c }}°</p>
+                            <div class="wx-minmax">
+                                <div class="wx-min"><p class="wx-label">Min</p><p class="wx-value">{{ weather.min_c }}°</p></div>
+                                <div class="wx-max"><p class="wx-label">Max</p><p class="wx-value">{{ weather.max_c }}°</p></div>
+                            </div>
+                        </article>
+                    </div>
+                    {% endif %}
+                    <article class="t-card ann-card">
+                        <h2>{{ lang_text('Duyurular', 'Announcements') }}</h2>
+                        {% if announcements %}
+                            <ul class="ann-compact">
+                                {% for ann in announcements[:4] %}
+                                    <li>
+                                        <div class="ann-head"><strong>{{ ann.title }}</strong><span>{{ ann.created_at.strftime('%d.%m') if ann.created_at else '' }}</span></div>
+                                        <div class="ann-body">{{ ann.body }}</div>
+                                        {% if ann.course %}<div class="ann-meta">{{ ann.course.code }}</div>{% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                            <a class="ann-all" href="{{ url_for('announcements_inbox') }}">{{ lang_text('Tüm duyurular', 'All announcements') }} →</a>
+                        {% else %}
+                            <p style="margin:0; color:var(--text-soft);">{{ lang_text('Aktif duyuru bulunmuyor.', 'No active announcements.') }}</p>
+                        {% endif %}
+                    </article>
+            </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="teacher-calendar-events-json" type="application/json">{{ calendar_events|tojson }}</script>
+<script id="teacher-calendar-i18n-json" type="application/json">{{ {
+    'select_day_prompt': lang_text('Takvimden bir gün seçin.', 'Select a day from the calendar.'),
+    'selected_day': lang_text('Seçili Gün', 'Selected Day'),
+    'no_events_this_day': lang_text('Bu gün için etkinlik yok.', 'No events for this day.'),
+    'delete': lang_text('Sil', 'Delete'),
+    'dashboard_url': dashboard_url
+}|tojson }}</script>
+<script>
+    function buildEventMap(events) {
+        const map = {};
+        for (const ev of events) {
+            const key = ev.event_date;
+            if (!map[key]) {
+                map[key] = [];
+            }
+            map[key].push(ev);
+        }
+        return map;
+    }
+
+    function renderCalendar(year, month, lang, eventMap) {
+        const weekdays = lang === 'tr'
+            ? ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
+            : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+        const title = document.getElementById('cal-title');
+        const weekdaysNode = document.getElementById('cal-weekdays');
+        const daysNode = document.getElementById('cal-days');
+        if (!title || !weekdaysNode || !daysNode) return;
+
+        title.textContent = new Intl.DateTimeFormat(lang === 'tr' ? 'tr-TR' : 'en-US', {
+            month: 'long', year: 'numeric'
+        }).format(new Date(year, month, 1));
+
+        weekdaysNode.innerHTML = weekdays.map((w) => `<span>${w}</span>`).join('');
+        daysNode.innerHTML = '';
+
+        const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (let i = 0; i < firstWeekday; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'day-cell muted';
+            daysNode.appendChild(cell);
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(year, month, d);
+            const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const events = eventMap[iso] || [];
+
+            const cell = document.createElement('div');
+            cell.className = 'day-cell';
+            if (dateObj.getTime() === today.getTime()) {
+                cell.classList.add('today');
+                const badge = document.createElement('span');
+                badge.className = 'today-badge';
+                badge.textContent = lang === 'tr' ? 'Bugün' : 'Today';
+                cell.appendChild(badge);
+            }
+
+            const num = document.createElement('div');
+            num.className = 'day-num';
+            num.textContent = String(d);
+            cell.appendChild(num);
+
+            if (events.length > 0) {
+                const dots = document.createElement('div');
+                dots.className = 'day-dots';
+                for (const ev of events.slice(0, 4)) {
+                    const dot = document.createElement('span');
+                    dot.className = `dot ${ev.event_type === 'exam' ? 'exam' : 'activity'}`;
+                    dot.title = ev.title;
+                    dots.appendChild(dot);
+                }
+                cell.appendChild(dots);
+            }
+
+            cell.dataset.date = iso;
+            daysNode.appendChild(cell);
+        }
+    }
+
+    function renderSelectedDay(isoDate, lang, eventMap, i18n) {
+        const label = document.getElementById('teacher-selected-day-label');
+        const list = document.getElementById('teacher-day-event-list');
+        const dayInput = document.getElementById('teacher-selected-day-input');
+        if (!label || !list || !dayInput) {
+            return;
+        }
+
+        dayInput.value = isoDate || '';
+        if (!isoDate) {
+            label.textContent = i18n.select_day_prompt;
+            list.innerHTML = `<p class="announcement-meta">${i18n.select_day_prompt}</p>`;
+            return;
+        }
+
+        const dayDate = new Date(`${isoDate}T00:00:00`);
+        const dayText = new Intl.DateTimeFormat(lang === 'tr' ? 'tr-TR' : 'en-US', {
+            day: '2-digit', month: 'long', year: 'numeric'
+        }).format(dayDate);
+        label.textContent = `${i18n.selected_day}: ${dayText}`;
+
+        const items = eventMap[isoDate] || [];
+        if (items.length === 0) {
+            list.innerHTML = `<p class="announcement-meta">${i18n.no_events_this_day}</p>`;
+            return;
+        }
+
+        list.innerHTML = items.map((ev) => {
+            const noteHtml = ev.note ? `<div class="announcement-meta">${ev.note}</div>` : '';
+            return `
+                <div class="event-item">
+                    <div class="event-head">
+                        <strong>${ev.title}</strong>
+                        <span class="chip-tag">${(ev.event_type || '').toUpperCase()}</span>
+                    </div>
+                    ${noteHtml}
+                    <form method="post" action="${i18n.dashboard_url}" class="event-delete-form">
+                        <input type="hidden" name="action" value="delete_calendar_event">
+                        <input type="hidden" name="event_id" value="${ev.id}">
+                        <button type="submit">${i18n.delete}</button>
+                    </form>
+                </div>
+            `;
+        }).join('');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const eventsJsonNode = document.getElementById('teacher-calendar-events-json');
+        const i18nJsonNode = document.getElementById('teacher-calendar-i18n-json');
+        let calendarEvents = [];
+        let calendarI18n = {
+            select_day_prompt: 'Select a day from the calendar.',
+            selected_day: 'Selected Day',
+            no_events_this_day: 'No events for this day.',
+            delete: 'Delete',
+            dashboard_url: '/teacher_dashboard'
+        };
+
+        if (eventsJsonNode && eventsJsonNode.textContent) {
+            try { calendarEvents = JSON.parse(eventsJsonNode.textContent); } catch (e) { calendarEvents = []; }
+        }
+        if (i18nJsonNode && i18nJsonNode.textContent) {
+            try { calendarI18n = JSON.parse(i18nJsonNode.textContent); } catch (e) {}
+        }
+
+        const lang = '{{ current_lang }}';
+        const eventMap = buildEventMap(calendarEvents);
+        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth();
+        let selectedDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+
+        const bindDayClicks = () => {
+            document.querySelectorAll('.day-cell[data-date]').forEach((cell) => {
+                cell.addEventListener('click', () => {
+                    selectedDate = cell.dataset.date || null;
+                    document.querySelectorAll('.day-cell.selected').forEach((node) => node.classList.remove('selected'));
+                    cell.classList.add('selected');
+                    renderSelectedDay(selectedDate, lang, eventMap, calendarI18n);
+                });
+            });
+        };
+
+        const syncSelectedCell = () => {
+            document.querySelectorAll('.day-cell.selected').forEach((node) => node.classList.remove('selected'));
+            if (!selectedDate) {
+                return;
+            }
+            const selectedNode = document.querySelector(`.day-cell[data-date="${selectedDate}"]`);
+            if (selectedNode) {
+                selectedNode.classList.add('selected');
+            }
+        };
+
+        renderCalendar(currentYear, currentMonth, lang, eventMap);
+        renderSelectedDay(selectedDate, lang, eventMap, calendarI18n);
+        bindDayClicks();
+        syncSelectedCell();
+
+        document.getElementById('cal-prev')?.addEventListener('click', () => {
+            currentMonth -= 1;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear -= 1;
+            }
+            renderCalendar(currentYear, currentMonth, lang, eventMap);
+            renderSelectedDay(selectedDate, lang, eventMap, calendarI18n);
+            bindDayClicks();
+            syncSelectedCell();
+        });
+
+        document.getElementById('cal-next')?.addEventListener('click', () => {
+            currentMonth += 1;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear += 1;
+            }
+            renderCalendar(currentYear, currentMonth, lang, eventMap);
+            renderSelectedDay(selectedDate, lang, eventMap, calendarI18n);
+            bindDayClicks();
+            syncSelectedCell();
+        });
+
+        document.getElementById('teacher-open-day-add')?.addEventListener('click', () => {
+            if (!selectedDate) {
+                return;
+            }
+            document.getElementById('teacher-day-add-form')?.classList.toggle('open');
+        });
+
+        // Weather follows the device location automatically: ask once per browser session
+        // (the server remembers the coordinates); if denied, the default city stays.
+        const locForm = document.getElementById('auto-weather-form');
+        const usingLocation = {{ 'true' if weather_using_location else 'false' }};
+        let geoTried = false;
+        try { geoTried = sessionStorage.getItem('ams-geo-tried') === '1'; } catch (e) {}
+        if (locForm && !usingLocation && !geoTried && navigator.geolocation) {
+            try { sessionStorage.setItem('ams-geo-tried', '1'); } catch (e) {}
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    document.getElementById('auto-lat').value = String(pos.coords.latitude);
+                    document.getElementById('auto-lon').value = String(pos.coords.longitude);
+                    locForm.submit();
+                },
+                () => {},
+                { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
+            );
+        }
+    });
+</script>
+
+{% endblock %}

@@ -17,6 +17,17 @@
     th { color:var(--text-soft); font-weight:700; }
     .pill { display:inline-block; border:1px solid var(--line); border-radius:999px; padding:2px 8px; font-size:11px; color:var(--text-soft); }
     .ops { display:flex; gap:6px; flex-wrap:wrap; }
+    .pill-ok { border-color:rgba(42,157,92,0.55); color:#4cc38a; }
+    .status.plan-pending { border-color:rgba(216,183,90,0.55); background:rgba(216,183,90,0.08); }
+    .status.plan-approved { border-color:rgba(42,157,92,0.45); background:rgba(42,157,92,0.08); }
+    .status.plan-rejected { border-color:rgba(192,57,43,0.45); background:rgba(192,57,43,0.08); }
+    .plan-reason { margin:8px 0 0; font-size:13px; }
+    .plan-submit { margin-top:10px; }
+    .tc-limit { margin:0 0 10px; padding:10px 12px; border-radius:12px; font-size:13px; line-height:1.5;
+                border:1px solid rgba(192,57,43,0.5); background:rgba(192,57,43,0.12); }
+    .tc-limit-soft { border-color:rgba(216,183,90,0.55); background:rgba(216,183,90,0.1); }
+    .pill-limit { border-color:rgba(192,57,43,0.55); color:#e07a6e; white-space:nowrap; }
+    .tc-total td { font-weight:700; border-top:2px solid var(--line); border-bottom:0; }
     @media (max-width: 960px) { .grid { grid-template-columns:1fr; } }
 </style>
 
@@ -32,53 +43,110 @@
     </div>
 
     <div class="status {% if is_open %}open{% else %}closed{% endif %}">
-        <strong>{{ lang_text('Ders alma-birakma penceresi', 'Add-drop window') }}:</strong>
+        <strong>{{ lang_text('Ders alma-bırakma penceresi', 'Add-drop window') }}:</strong>
         {% if is_open %}{{ lang_text('ACIK', 'OPEN') }}{% else %}{{ lang_text('KAPALI', 'CLOSED') }}{% endif %}
         <br>
         <span class="meta">
-            {{ lang_text('Baslangic', 'Start') }}: {{ policy.add_drop_start.strftime('%d-%m-%Y %H:%M') if policy and policy.add_drop_start else '-' }} |
-            {{ lang_text('Bitis', 'End') }}: {{ policy.add_drop_end.strftime('%d-%m-%Y %H:%M') if policy and policy.add_drop_end else '-' }} |
-            {{ lang_text('Kredi Limiti', 'Credit Limit') }}: {{ policy.min_credits if policy else 0 }} - {{ policy.max_credits if policy else 30 }} |
-            {{ lang_text('Mevcut Kredi', 'Current Credits') }}: {{ enrolled_credits }}
+            {{ lang_text('Başlangıç', 'Start') }}: {{ policy.add_drop_start.strftime('%d-%m-%Y %H:%M') if policy and policy.add_drop_start else '-' }} |
+            {{ lang_text('Bitiş', 'End') }}: {{ policy.add_drop_end.strftime('%d-%m-%Y %H:%M') if policy and policy.add_drop_end else '-' }} |
+            {{ lang_text('AKTS Limiti', 'ECTS Limit') }}: {{ policy.min_credits if policy else 0 }} - {{ policy.max_credits if policy else 45 }} |
+            {{ lang_text('Mevcut AKTS', 'Current ECTS') }}: {{ enrolled_credits }}
         </span>
+    </div>
+
+    {% set plan_labels = {
+        'draft': lang_text('Taslak — henüz danışmana gönderilmedi', 'Draft — not sent to your advisor yet'),
+        'pending': lang_text('Danışman onayı bekleniyor', 'Waiting for advisor approval'),
+        'approved': lang_text('Danışman tarafından onaylandı', 'Approved by your advisor'),
+        'rejected': lang_text('Danışman tarafından reddedildi', 'Rejected by your advisor'),
+    } %}
+    <div class="status plan-{{ plan.status }}">
+        <strong>{{ lang_text('Program durumu', 'Plan status') }}:</strong> {{ plan_labels[plan.status] }}
+        <br>
+        <span class="meta">
+            {{ lang_text('Danışman', 'Advisor') }}: {{ advisor.name if advisor else lang_text('atanmadı', 'not assigned') }}
+            {% if plan.submitted_at %} | {{ lang_text('Gönderim', 'Submitted') }}: {{ plan.submitted_at.strftime('%d-%m-%Y %H:%M') }}{% endif %}
+            {% if plan.decided_at %} | {{ lang_text('Karar', 'Decision') }}: {{ plan.decided_at.strftime('%d-%m-%Y %H:%M') }}{% endif %}
+        </span>
+        {% if plan.status == 'rejected' and plan.rejection_reason %}
+        <p class="plan-reason"><strong>{{ lang_text('Red sebebi', 'Reason') }}:</strong> {{ plan.rejection_reason }}</p>
+        {% endif %}
+        {% if not advisor %}
+        <p class="plan-reason">{{ lang_text('Danışmanınız atanmadan ders kaydı yapamazsınız. Lütfen öğrenci işleriyle iletişime geçin.', 'You cannot register for courses until an advisor is assigned. Please contact Student Affairs.') }}</p>
+        {% elif advisor_mode and plan.status == 'pending' %}
+        <form method="post" action="{{ url_for('view_as_term_plan_approve') }}" class="plan-submit"
+              data-confirm="{{ lang_text('Bu ders programı onaylansın mı? Dersler resmileşir ve öğrenciye bildirim gider.', 'Approve this course plan? The courses become official and the student is notified.') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit">{{ lang_text('Programı onayla', 'Approve plan') }}</button>
+        </form>
+        {% elif not advisor_mode and can_edit %}
+        <form method="post" action="{{ url_for('student_term_plan_submit') }}" class="plan-submit"
+              data-confirm="{{ lang_text('Program danışmanınıza gönderilsin mi? Gönderdikten sonra değişiklik yapamazsınız.', 'Send your plan to your advisor? You cannot change it after sending.') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" {% if not enrollments %}disabled{% endif %}>{{ lang_text('Danışman onayına gönder', 'Send for advisor approval') }}</button>
+        </form>
+        {% endif %}
     </div>
 
     <div class="grid">
         <section class="card">
-            <h2>{{ lang_text('Aldigim Dersler', 'My Courses') }}</h2>
+            <h2>{{ lang_text('Aldığım Dersler', 'My Courses') }}</h2>
             {% if enrollments %}
             <table>
                 <thead>
-                    <tr><th>{{ lang_text('Kod', 'Code') }}</th><th>{{ lang_text('Ders', 'Course') }}</th><th>{{ lang_text('Kredi', 'Credit') }}</th><th>{{ lang_text('Islem', 'Action') }}</th></tr>
+                    <tr><th>{{ lang_text('Kod', 'Code') }}</th><th>{{ lang_text('Ders', 'Course') }}</th><th>{{ lang_text('Durum', 'Status') }}</th><th>{{ lang_text('Kredi', 'Credit') }}</th><th>{{ lang_text('AKTS', 'ECTS') }}</th><th>{{ lang_text('İşlem', 'Action') }}</th></tr>
                 </thead>
                 <tbody>
                     {% for en in enrollments %}
                     <tr>
                         <td>{{ en.course.code if en.course else '-' }}</td>
                         <td>{{ en.course.title if en.course else '-' }}</td>
+                        <td>{% if en.approved %}<span class="pill pill-ok">{{ lang_text('Onaylı', 'Approved') }}</span>{% else %}<span class="pill">{{ lang_text('Onay bekliyor', 'Not approved') }}</span>{% endif %}</td>
                         <td>{{ en.course.credit if en.course else 0 }}</td>
+                        <td>{{ en.course.ects if en.course else 0 }}</td>
                         <td>
                             <form method="post" action="{{ url_for('student_term_courses_update') }}">
                                 <input type="hidden" name="action" value="drop">
                                 <input type="hidden" name="course_id" value="{{ en.course_id }}">
-                                <button type="submit" {% if not is_open %}disabled{% endif %}>{{ lang_text('Birak', 'Drop') }}</button>
+                                <button type="submit" {% if not can_edit %}disabled{% endif %}>{{ lang_text('Bırak', 'Drop') }}</button>
                             </form>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
+                <tfoot>
+                    <tr class="tc-total">
+                        <td colspan="3">{{ lang_text('Toplam', 'Total') }} · {{ enrollments|length }} {{ lang_text('ders', 'courses') }}</td>
+                        <td>{{ enrollments|sum(attribute='course.credit') }}</td>
+                        <td>{{ enrollments|sum(attribute='course.ects') }}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
             </table>
             {% else %}
-            <p class="meta">{{ lang_text('Kayitli ders yok.', 'No enrolled course.') }}</p>
+            <p class="meta">{{ lang_text('Kayıtlı ders yok.', 'No enrolled course.') }}</p>
             {% endif %}
         </section>
 
         <section class="card">
-            <h2>{{ lang_text('Acik Dersler', 'Available Courses') }}</h2>
+            <h2>{{ lang_text('Açık Dersler', 'Available Courses') }}</h2>
+            {% set max_ects = policy.max_credits if policy and policy.max_credits else 45 %}
+            {% set remaining_ects = max_ects - enrolled_credits %}
+            {% if can_edit and remaining_ects <= 0 %}
+            <div class="tc-limit" role="alert">
+                <strong>{{ lang_text('AKTS limitine ulaştınız', 'You have reached the ECTS limit') }} ({{ enrolled_credits }}/{{ max_ects }}).</strong>
+                {{ lang_text('Yeni ders eklemek için önce bir ders bırakın.', 'Drop a course before adding a new one.') }}
+            </div>
+            {% elif can_edit and available_courses|rejectattr('id', 'in', enrolled_course_ids)|selectattr('ects', 'gt', remaining_ects)|list %}
+            <div class="tc-limit tc-limit-soft" role="status">
+                {{ lang_text('Kalan AKTS hakkınız', 'Remaining ECTS') }}: <strong>{{ remaining_ects }}</strong>.
+                {{ lang_text('Limiti aşacak derslerin "Ekle" butonu kapalıdır.', 'Courses that would exceed the limit cannot be added.') }}
+            </div>
+            {% endif %}
             {% if available_courses %}
             <table>
                 <thead>
-                    <tr><th>{{ lang_text('Kod', 'Code') }}</th><th>{{ lang_text('Ders', 'Course') }}</th><th>{{ lang_text('Kredi', 'Credit') }}</th><th>{{ lang_text('Kontenjan', 'Capacity') }}</th><th>{{ lang_text('Saat', 'Schedule') }}</th><th>{{ lang_text('Islem', 'Action') }}</th></tr>
+                    <tr><th>{{ lang_text('Kod', 'Code') }}</th><th>{{ lang_text('Ders', 'Course') }}</th><th>{{ lang_text('Kredi', 'Credit') }}</th><th>{{ lang_text('AKTS', 'ECTS') }}</th><th>{{ lang_text('Kontenjan', 'Capacity') }}</th><th>{{ lang_text('Saat', 'Schedule') }}</th><th>{{ lang_text('İşlem', 'Action') }}</th></tr>
                 </thead>
                 <tbody>
                     {% for course in available_courses %}
@@ -86,16 +154,19 @@
                         <td>{{ course.code }}</td>
                         <td>{{ course.title }}</td>
                         <td>{{ course.credit }}</td>
+                        <td>{{ course.ects }}</td>
                         <td>{{ course_student_counts.get(course.id, 0) }}/{{ course.capacity or '-' }}</td>
                         <td>{{ course.schedule_slot or '-' }}</td>
                         <td>
                             {% if course.id in enrolled_course_ids %}
-                                <span class="pill">{{ lang_text('Kayitli', 'Enrolled') }}</span>
+                                <span class="pill">{{ lang_text('Kayıtlı', 'Enrolled') }}</span>
+                            {% elif can_edit and course.ects > remaining_ects %}
+                                <span class="pill pill-limit" title="{{ lang_text('Bu ders AKTS limitini aşar', 'This course exceeds the ECTS limit') }}">{{ lang_text('Limit aşılır', 'Over limit') }}</span>
                             {% else %}
                                 <form method="post" action="{{ url_for('student_term_courses_update') }}">
                                     <input type="hidden" name="action" value="add">
                                     <input type="hidden" name="course_id" value="{{ course.id }}">
-                                    <button type="submit" {% if not is_open %}disabled{% endif %}>{{ lang_text('Ekle', 'Add') }}</button>
+                                    <button type="submit" {% if not can_edit %}disabled{% endif %}>{{ lang_text('Ekle', 'Add') }}</button>
                                 </form>
                             {% endif %}
                         </td>
@@ -104,10 +175,49 @@
                 </tbody>
             </table>
             {% else %}
-            <p class="meta">{{ lang_text('Acik ders bulunamadi.', 'No available courses found.') }}</p>
+            <p class="meta">{{ lang_text('Açık ders bulunamadı.', 'No available courses found.') }}</p>
             {% endif %}
         </section>
     </div>
 </div>
 
+<div class="tc-toasts" id="tc-toasts" aria-live="polite"></div>
+<style>
+    .tc-toasts { position:fixed; top:18px; right:18px; z-index:50; display:flex; flex-direction:column; gap:8px; max-width:min(420px, calc(100vw - 36px)); }
+    .tc-toasts .alert { margin:0; box-shadow:0 8px 24px rgba(0,0,0,.25); }
+    .page-shell.is-busy button { pointer-events:none; opacity:.6; }
+</style>
+<script>
+    // Add / drop without a full page load: post the form, then swap in the refreshed lists in place
+    // so the scroll position stays where the student is working.
+    (function () {
+        var toasts = document.getElementById('tc-toasts');
+        function showFlashes(doc) {
+            doc.querySelectorAll('section[aria-live] .alert').forEach(function (alert) {
+                var node = document.importNode(alert, true);
+                toasts.appendChild(node);
+                setTimeout(function () { node.remove(); }, 3500);
+            });
+        }
+        document.addEventListener('submit', function (event) {
+            var form = event.target;
+            if (!form.matches('form[action$="/student/term-courses/update"]')) return;
+            event.preventDefault();
+            var shell = document.querySelector('.page-shell');
+            shell.classList.add('is-busy');
+            // getAttribute: these forms have an input named "action", which shadows form.action.
+            fetch(form.getAttribute('action'), { method: 'POST', body: new FormData(form), credentials: 'same-origin' })
+                .then(function (response) { return response.text(); })
+                .then(function (html) {
+                    var doc = new DOMParser().parseFromString(html, 'text/html');
+                    var fresh = doc.querySelector('.page-shell');
+                    if (!fresh) { window.location.reload(); return; }
+                    shell.innerHTML = fresh.innerHTML;
+                    showFlashes(doc);
+                })
+                .catch(function () { window.location.reload(); })
+                .finally(function () { shell.classList.remove('is-busy'); });
+        });
+    })();
+</script>
 {% endblock %}

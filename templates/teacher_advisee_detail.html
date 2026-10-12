@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ name }}{% endblock %}
+
+{% block content %}
+<div class="pv-pagehead">
+    <div>
+        <h1>{{ name }}</h1>
+        <p class="reg-welcome">{{ student.student_number }} · {{ email }}</p>
+    </div>
+    <a class="mb-btn" href="{{ url_for('teacher_advisees') }}">← {{ lang_text('Listeye dön', 'Back to list') }}</a>
+</div>
+
+<section class="summary-grid">
+    <article class="summary-card blue">
+        <div class="summary-label">{{ lang_text('Not Ortalaması (4.00)', 'GPA (4.00)') }}</div>
+        <div class="summary-value">{{ '%.2f' % summary.gpa if summary.gpa is not none else '-' }}</div>
+    </article>
+    <article class="summary-card green">
+        <div class="summary-label">{{ lang_text('Notlandırılmış AKTS', 'Graded ECTS') }}</div>
+        <div class="summary-value">{{ summary.credits }}</div>
+    </article>
+</section>
+
+<section class="cmp-card">
+    <h2>{{ lang_text('Kayıtlı Dersler ve Notlar', 'Enrolled Courses and Grades') }}</h2>
+    {% if summary.courses %}
+    <table class="data-table">
+        <thead><tr>
+            <th>{{ lang_text('Kod', 'Code') }}</th><th>{{ lang_text('Ders', 'Course') }}</th>
+            <th>{{ lang_text('Kredi', 'Credit') }}</th><th>{{ lang_text('AKTS', 'ECTS') }}</th><th>{{ lang_text('Notlar', 'Grades') }}</th>
+            <th>{{ lang_text('Ortalama', 'Average') }}</th>
+        </tr></thead>
+        <tbody>
+        {% for row in summary.courses %}
+            <tr>
+                <td>{{ row.course.code }}</td>
+                <td>{{ row.course.title }}</td>
+                <td>{{ row.course.credit }}</td><td>{{ row.course.ects }}</td>
+                <td>{% for g in row.grades %}{{ g.assessment_name }}: {{ g.letter_grade }}{% if not loop.last %}, {% endif %}{% else %}-{% endfor %}</td>
+                <td>{{ '%.2f' % row.average if row.average is not none else '-' }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>{{ lang_text('Kayıtlı ders yok.', 'No enrolled courses.') }}</p>
+    {% endif %}
+</section>
+
+<section class="cmp-card">
+    <h2>{{ lang_text('Devamsızlık Özeti', 'Attendance Summary') }}</h2>
+    {% if summary.attendance %}
+    <table class="data-table">
+        <thead><tr>
+            <th>{{ lang_text('Ders', 'Class') }}</th><th>{{ lang_text('Katıldığı', 'Attended') }}</th>
+            <th>{{ lang_text('Toplam oturum', 'Total sessions') }}</th><th>%</th><th></th>
+        </tr></thead>
+        <tbody>
+        {% for row in summary.attendance %}
+            <tr>
+                <td>{{ row.cls.name }}</td>
+                <td>{{ row.attended }}</td>
+                <td>{{ row.total }}</td>
+                <td>{{ '%.0f' % row.percentage }}</td>
+                <td>{% if row.risk %}<span class="pv-status warn"><span class="pv-dot"></span>{{ lang_text('Risk', 'At risk') }}</span>{% endif %}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>{{ lang_text('Yoklama verisi yok.', 'No attendance data.') }}</p>
+    {% endif %}
+</section>
+{% endblock %}

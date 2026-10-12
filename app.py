@@ -11,15 +11,16 @@ import qrcode
 import csv
 import json
 from collections import deque, defaultdict
-from io import StringIO
+from io import StringIO, BytesIO
 from functools import wraps
 from email.message import EmailMessage
 from urllib.parse import urlparse, quote
 from urllib.request import Request, urlopen
 from logging.handlers import RotatingFileHandler
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, Response, g
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, Response, g, abort, send_from_directory
 from sqlalchemy import text, func
-from models import db, User, Student, Class, AttendanceSession, AttendanceRecord, Course, CourseEnrollment, GradeRecord, CourseRegistrationPolicy, CourseEnrollmentAudit, Announcement, StudentCalendarEvent, UserCalendarEvent, PermissionAuditLog, AdminOperationLog
+from env_config import load_dotenv, resolve_database_url
+from models import db, User, Student, StudentGroup, Message, Class, AttendanceSession, AttendanceRecord, Course, CourseEnrollment, GradeRecord, CourseRegistrationPolicy, CourseEnrollmentAudit, TermPlan, DEFAULT_COURSE_CREDIT, DEFAULT_COURSE_ECTS, Announcement, StudentCalendarEvent, UserCalendarEvent, PermissionAuditLog, AdminOperationLog
 
 
 LANGUAGES = ('en', 'tr')
@@ -56,7 +57,7 @@ TRANSLATIONS = {
         'name': 'Name',
         'student_number': 'Student Number',
         'student_home': 'Student Home',
-        'welcome_user_continue': 'Welcome, {name}. Continue using the cards below.',
+        'welcome_user_continue': 'Welcome, {name}.',
         'my_account': 'My Account',
         'logout': 'Logout',
         'announcements': 'Announcements',
@@ -291,8 +292,14 @@ TRANSLATIONS = {
         'active_term': 'Active Term',
         'student_label': 'Student',
         'gpa_4': 'GPA (4.00)',
-        'weighted_credits': 'Weighted Credits',
+        'weighted_credits': 'Weighted ECTS',
         'no_graded_data': 'No graded course data yet.',
+        'advisor_student_not_found': 'Student not found.',
+        'advisor_must_be_teacher': 'The advisor must be a teacher.',
+        'advisor_update_failed': 'Advisor update failed (database error).',
+        'advisor_updated': 'Advisor updated.',
+        'advisee_not_found': 'This student is not one of your advisees.',
+        'view_as_read_only': 'Read-only student view: this action is not available.',
         'calculated_from_courses': 'Calculated from {count} graded course(s).',
         'transcript_table_not_initialized': 'Transcript table is not initialized yet.',
         'today': 'Today',
@@ -354,314 +361,320 @@ TRANSLATIONS = {
     'tr': {
         'language': 'Dil',
         'site_title': 'QR Yoklama Sistemi',
-        'english': 'Ingilizce',
-        'turkish': 'Turkce',
-        'language_updated': 'Dil guncellendi.',
-        'skip_to_content': 'Icerige gec',
-        'login': 'Giris',
-        'register': 'Kayit Ol',
+        'english': 'İngilizce',
+        'turkish': 'Türkçe',
+        'language_updated': 'Dil güncellendi.',
+        'skip_to_content': 'İçeriğe geç',
+        'login': 'Giriş',
+        'register': 'Kayıt Ol',
         'email': 'E-posta',
-        'password': 'Sifre',
-        'remember_me': 'Beni Hatirla',
-        'dont_have_account': 'Hesabin yok mu?',
-        'already_registered': 'Zaten kayitli misin?',
-        'welcome_short': 'Hos geldin.',
-        'student': 'Ogrenci',
-        'teacher': 'Ogretmen',
+        'password': 'Şifre',
+        'remember_me': 'Beni Hatırla',
+        'dont_have_account': 'Hesabın yok mu?',
+        'already_registered': 'Zaten kayıtlı mısın?',
+        'welcome_short': 'Hoş geldin.',
+        'student': 'Öğrenci',
+        'teacher': 'Öğretmen',
         'name': 'Ad Soyad',
-        'student_number': 'Ogrenci Numarasi',
-        'student_home': 'Ogrenci Ana Sayfasi',
-        'welcome_user_continue': 'Hos geldin, {name}. Asagidaki kartlarla devam edebilirsin.',
-        'my_account': 'Hesabim',
-        'logout': 'Cikis',
+        'student_number': 'Öğrenci Numarası',
+        'student_home': 'Öğrenci Ana Sayfası',
+        'welcome_user_continue': 'Hoş geldin, {name}.',
+        'my_account': 'Hesabım',
+        'logout': 'Çıkış',
         'announcements': 'Duyurular',
-        'no_announcements': 'Henuz duyuru yok.',
+        'no_announcements': 'Henüz duyuru yok.',
         'weather': 'Hava Durumu',
-        'enter_city': 'Sehir girin',
-        'update': 'Guncelle',
+        'enter_city': 'Şehir girin',
+        'update': 'Güncelle',
         'use_current_location': 'Mevcut Konumumu Kullan',
         'source': 'Kaynak',
         'automatic_location': 'Otomatik konum',
-        'manual_city': 'Manuel sehir',
-        'city': 'Sehir',
+        'manual_city': 'Manuel şehir',
+        'city': 'Şehir',
         'condition': 'Durum',
-        'temperature': 'Sicaklik',
+        'temperature': 'Sıcaklık',
         'humidity': 'Nem',
-        'weather_service_unavailable': 'Hava durumu servisi su an kullanilamiyor.',
-        'calendar_and_upcoming': 'Takvim ve Yaklasan Ogeler',
-        'calendar_view': 'Takvim Gorunumu',
-        'previous_month': 'Onceki',
+        'weather_service_unavailable': 'Hava durumu servisi şu an kullanılamıyor.',
+        'calendar_and_upcoming': 'Takvim ve Yaklaşan Öğeler',
+        'calendar_view': 'Takvim Görünümü',
+        'previous_month': 'Önceki',
         'next_month': 'Sonraki',
-        'select_day_prompt': 'Takvimden bir gun secin.',
-        'selected_day': 'Secilen Gun',
-        'no_events_this_day': 'Bu gun icin etkinlik yok.',
-        'today': 'Bugun',
+        'select_day_prompt': 'Takvimden bir gün seçin.',
+        'selected_day': 'Seçilen Gün',
+        'no_events_this_day': 'Bu gün için etkinlik yok.',
+        'today': 'Bugün',
         'events': 'Etkinlikler',
-        'upcoming_counts': 'Yaklasan sinav: {exams} | Yaklasan etkinlik: {activities}',
-        'add_item': 'Oge Ekle',
-        'title': 'Baslik',
-        'event_type': 'Etkinlik Turu',
-        'exam': 'Sinav',
+        'upcoming_counts': 'Yaklaşan sınav: {exams} | Yaklaşan etkinlik: {activities}',
+        'add_item': 'Öğe Ekle',
+        'title': 'Başlık',
+        'event_type': 'Etkinlik Türü',
+        'exam': 'Sınav',
         'activity': 'Etkinlik',
         'event_date': 'Etkinlik Tarihi',
-        'optional_note': 'Istege bagli not',
+        'optional_note': 'İsteğe bağlı not',
         'add_to_calendar': 'Takvime Ekle',
-        'upcoming_exams_activities': 'Yaklasan Sinavlar ve Etkinlikler',
+        'upcoming_exams_activities': 'Yaklaşan Sınavlar ve Etkinlikler',
         'date': 'Tarih',
         'delete': 'Sil',
-        'no_upcoming_item': 'Takviminde yaklasan oge yok.',
-        'page_not_found': 'Sayfa Bulunamadi',
-        'page_not_found_404': 'Sayfa Bulunamadi (404)',
-        'requested_page_not_found': 'Istedigin sayfa bulunamadi.',
-        'check_url_or_dashboard': 'Lutfen URL adresini kontrol et ya da paneline don.',
-        'teacher_dashboard': 'Ogretmen Paneli',
-        'go_to_login': 'Giris Sayfasina Git',
-        'server_error': 'Sunucu Hatasi',
-        'something_went_wrong_500': 'Bir Seyler Ters Gitti (500)',
-        'unexpected_server_error': 'Beklenmeyen bir sunucu hatasi olustu.',
-        'try_again_moment': 'Lutfen birazdan tekrar dene.',
-        'attendance_successful': 'Yoklama Basarili',
+        'no_upcoming_item': 'Takviminde yaklaşan öğe yok.',
+        'page_not_found': 'Sayfa Bulunamadı',
+        'page_not_found_404': 'Sayfa Bulunamadı (404)',
+        'requested_page_not_found': 'İstediğin sayfa bulunamadı.',
+        'check_url_or_dashboard': 'Lütfen URL adresini kontrol et ya da paneline dön.',
+        'teacher_dashboard': 'Öğretmen Paneli',
+        'go_to_login': 'Giriş Sayfasına Git',
+        'server_error': 'Sunucu Hatası',
+        'something_went_wrong_500': 'Bir Şeyler Ters Gitti (500)',
+        'unexpected_server_error': 'Beklenmeyen bir sunucu hatası oluştu.',
+        'try_again_moment': 'Lütfen birazdan tekrar dene.',
+        'attendance_successful': 'Yoklama Başarılı',
         'attendance_recorded': 'Yoklama Kaydedildi',
         'class': 'Ders',
         'week': 'Hafta',
-        'your_attendance_confirmed': 'Yoklaman basariyla onaylandi.',
-        'return_to_student_dashboard': 'Ogrenci Paneline Don',
-        'class_details': 'Ders Detaylari',
-        'students': 'Ogrenciler',
-        'student_name': 'Ogrenci Adi',
+        'your_attendance_confirmed': 'Yoklaman başarıyla onaylandı.',
+        'return_to_student_dashboard': 'Öğrenci Paneline Dön',
+        'class_details': 'Ders Detayları',
+        'students': 'Öğrenciler',
+        'student_name': 'Öğrenci Adı',
         'full_name': 'Ad Soyad',
         'first_name': 'Ad',
         'last_name': 'Soyad',
         'gender': 'Cinsiyet',
-        'birth_date': 'Dogum Tarihi',
-        'birth_place': 'Dogum Yeri',
-        'citizenship': 'Vatandaslik',
-        'identity_number': 'Kimlik Numarasi',
+        'birth_date': 'Doğum Tarihi',
+        'birth_place': 'Doğum Yeri',
+        'citizenship': 'Vatandaşlık',
+        'identity_number': 'Kimlik Numarası',
         'nationality': 'Uyruk',
-        'registered_city': 'Kayitli Il',
-        'registered_district': 'Kayitli Ilce',
+        'registered_city': 'Kayıtlı Il',
+        'registered_district': 'Kayıtlı İlçe',
         'passport_number': 'Pasaport No',
         'active': 'Aktif',
-        'passport_details': 'Pasaport Detaylari',
+        'passport_details': 'Pasaport Detayları',
         'issued_date': 'Verilme Tarihi',
         'issued_place': 'Verilme Yeri',
-        'valid_until': 'Gecerlilik Tarihi',
+        'valid_until': 'Geçerlilik Tarihi',
         'active_status_box': 'Aktif',
-        'other_information': 'Diger Bilgiler',
+        'other_information': 'Diğer Bilgiler',
         'marital_status': 'Medeni Durum',
         'blood_type': 'Kan Grubu',
-        'veteran_martyr_relative_q': 'Gazi/Sehit Yakini mi?',
+        'veteran_martyr_relative_q': 'Gazi/Şehit Yakını mi?',
         'disabled_q': 'Engelli mi?',
-        'disability_type': 'Engel Turu',
-        'disability_rate': 'Engel Orani',
-        'working_information': 'Calisma Bilgileri',
-        'is_employed_q': 'Calisiyor mu?',
-        'is_group_company_q': 'Grup Sirketi mi?',
-        'company_name': 'Sirket Adi',
-        'work_type': 'Calisma Sekli',
-        'employment_start_date': 'Ise Giris Tarihi',
-        'student_affairs_edit_note': 'Duzenleme Yapmak Istiyorsaniz Lutfen Ogrenci Islerine Basvurun',
-        'expand': 'Ac',
+        'disability_type': 'Engel Türü',
+        'disability_rate': 'Engel Oranı',
+        'working_information': 'Çalışma Bilgileri',
+        'is_employed_q': 'Çalışıyor mu?',
+        'is_group_company_q': 'Grup Şirketi mi?',
+        'company_name': 'Şirket Adı',
+        'work_type': 'Çalışma Şekli',
+        'employment_start_date': 'Ise Giriş Tarihi',
+        'student_affairs_edit_note': 'Düzenleme Yapmak İstiyorsanız Lütfen Öğrenci İşlerine Başvurun',
+        'expand': 'Aç',
         'collapse': 'Kapat',
         'role_label': 'Rol',
-        'student_number_label': 'Ogrenci Numarasi',
-        'attended_sessions': 'Katildigi Oturum',
-        'absences': 'Devamsizlik',
-        'passed_q': 'Gecti mi?',
+        'student_number_label': 'Öğrenci Numarası',
+        'attended_sessions': 'Katıldığı Oturum',
+        'absences': 'Devamsızlık',
+        'passed_q': 'Geçti mi?',
         'yes': 'Evet',
-        'no': 'Hayir',
-        'no_students_in_class': 'Bu derste henuz ogrenci yok.',
+        'no': 'Hayır',
+        'no_students_in_class': 'Bu derste henüz öğrenci yok.',
         'back': 'Geri',
-        'create_class': 'Ders Olustur',
-        'create_new_class': 'Yeni Ders Olustur',
-        'class_name': 'Ders Adi',
-        'create': 'Olustur',
-        'join_class': 'Derse Katil',
+        'create_class': 'Ders Oluştur',
+        'create_new_class': 'Yeni Ders Oluştur',
+        'class_name': 'Ders Adı',
+        'create': 'Oluştur',
+        'join_class': 'Derse Katıl',
         'search_class': 'Ders ara...',
-        'join': 'Katil',
-        'absence_title': 'Devamsizlik',
-        'absence_subtitle': '{name} icin tum yoklama islemleri burada yonetilir.',
-        'back_to_home': 'Ana Sayfaya Don',
-        'enrolled_courses': 'Kayitli Dersler',
+        'join': 'Katıl',
+        'absence_title': 'Devamsızlık',
+        'absence_subtitle': '{name} için tüm yoklama işlemleri burada yönetilir.',
+        'back_to_home': 'Ana Sayfaya Dön',
+        'enrolled_courses': 'Kayıtlı Dersler',
         'active_attendance': 'Aktif Yoklama',
         'total_sessions': 'Toplam Oturum',
-        'average_absence': 'Ortalama Devamsizlik',
+        'average_absence': 'Ortalama Devamsızlık',
         'search_course': 'Ders ara...',
         'search': 'Ara',
-        'course_based_absence': 'Ders Bazli Devamsizlik',
+        'course_based_absence': 'Ders Bazlı Devamsızlık',
         'total': 'Toplam',
-        'attended': 'Katilim',
+        'attended': 'Katılım',
         'status': 'Durum',
-        'attendance_already_marked': 'Yoklama zaten isaretli',
-        'mark_attendance': 'Yoklama Isaretle',
+        'attendance_already_marked': 'Yoklama zaten işaretli',
+        'mark_attendance': 'Yoklama İşaretle',
         'no_active_attendance': 'Aktif yoklama yok',
-        'absence_history': 'Devamsizlik Gecmisi',
-        'no_enrolled_course_found': 'Kayitli ders bulunamadi.',
-        'active_attendance_alerts': 'Aktif Yoklama Uyarilari',
+        'absence_history': 'Devamsızlık Geçmişi',
+        'no_enrolled_course_found': 'Kayıtlı ders bulunamadı.',
+        'active_attendance_alerts': 'Aktif Yoklama Uyarıları',
         'ends': 'Biter',
-        'no_active_attendance_alerts': 'Aktif yoklama uyarisi yok.',
-        'join_course': 'Derse Katil',
-        'no_additional_course': 'Katilinabilecek ek ders yok.',
-        'my_attendance_history': 'Yoklama Gecmisim',
+        'no_active_attendance_alerts': 'Aktif yoklama uyarısı yok.',
+        'join_course': 'Derse Katıl',
+        'no_additional_course': 'Katılınabilecek ek ders yok.',
+        'my_attendance_history': 'Yoklama Geçmişim',
         'present': 'Var',
         'absent': 'Yok',
-        'no_confirmed_attendance': 'Bu ders icin henuz onayli yoklama oturumu yok.',
-        'account_settings': 'Hesap Ayarlari',
-        'change_password': 'Sifre Degistir',
-        'current_password': 'Mevcut Sifre',
-        'new_password': 'Yeni Sifre',
-        'confirm_new_password': 'Yeni Sifreyi Onayla',
+        'no_confirmed_attendance': 'Bu ders için henüz onaylı yoklama oturumu yok.',
+        'account_settings': 'Hesap Ayarları',
+        'change_password': 'Şifre Değiştir',
+        'current_password': 'Mevcut Şifre',
+        'new_password': 'Yeni Şifre',
+        'confirm_new_password': 'Yeni Şifreyi Onayla',
         'account_deletion': 'Hesap Silme',
-        'student_delete_account_disabled': 'Ogrenciler icin hesap silme kapatilidir. Profilin ve yoklama gecmisin kayit butunlugu icin saklanir.',
-        'delete_account': 'Hesabi Sil',
-        'delete_account_warning': 'Bu islem geri alinamaz. Hesabini silmek icin sifreni gir.',
-        'my_attendance_history_title': 'Yoklama Gecmisim',
-        'attendance_history': 'Yoklama Gecmisi',
-        'back_to_dashboard': 'Panele Don',
+        'student_delete_account_disabled': 'Öğrenciler için hesap silme kapalıdır. Profilin ve yoklama geçmişin kayıt bütünlüğü için saklanır.',
+        'delete_account': 'Hesabı Sil',
+        'delete_account_warning': 'Bu işlem geri alınamaz. Hesabını silmek için şifreni gir.',
+        'my_attendance_history_title': 'Yoklama Geçmişim',
+        'attendance_history': 'Yoklama Geçmişi',
+        'back_to_dashboard': 'Panele Dön',
         'filters': 'Filtreler',
         'search_week': 'Hafta ara',
-        'start': 'Baslangic',
-        'end': 'Bitis',
+        'start': 'Başlangıç',
+        'end': 'Bitiş',
         'filter': 'Filtrele',
         'clear_filters': 'Filtreleri temizle',
         'download_csv': 'CSV Indir',
-        'summary': 'Ozet',
+        'summary': 'Özet',
         'detail': 'Detay',
-        'no_recorded_attendance': 'Henuz kayitli yoklama oturumu yok.',
-        'confirm_delete_attendance_session': 'Bu yoklama oturumunu silmek istedigine emin misin?',
-        'attendance_detail': 'Yoklama Detayi',
-        'absence_pct': 'Devamsizlik %',
+        'no_recorded_attendance': 'Henüz kayıtlı yoklama oturumu yok.',
+        'confirm_delete_attendance_session': 'Bu yoklama oturumunu silmek istediğine emin misin?',
+        'attendance_detail': 'Yoklama Detayı',
+        'absence_pct': 'Devamsızlık %',
         'total_classes': 'Toplam Ders',
-        'absence_percent_label': 'Devamsizlik (%)',
-        'no_students_found_class': 'Bu derste henuz ogrenci bulunamadi.',
+        'absence_percent_label': 'Devamsızlık (%)',
+        'no_students_found_class': 'Bu derste henüz öğrenci bulunamadı.',
         'qr_code': 'QR Kod',
         'token': 'Token',
-        'attendance_link': 'Yoklama Baglantisi',
-        'qr_help_text': 'Telefonunun ayni agda oldugundan ve uygulamanin bu URL uzerinden erisilebilir oldugundan emin ol.',
+        'attendance_link': 'Yoklama Bağlantısı',
+        'qr_help_text': 'Telefonunun aynı ağda olduğundan ve uygulamanın bu URL üzerinden erişilebilir olduğundan emin ol.',
         'download': 'Indir',
-        'print_or_pdf': 'Yazdir / PDF Kaydet',
-        'welcome_teacher': 'Hos geldin, {name}',
-        'start_attendance': 'Yoklama Baslat',
-        'week_placeholder': 'Hafta (ornek: 1)',
-        'start_and_open_qr': 'Baslat ve QR Ac',
-        'create_class_first': 'Once bir ders olusturman gerekiyor.',
-        'current_classes_and_qr': 'Mevcut Dersler ve QR Kodlari',
-        'students_count': 'Ogrenci: {count}',
+        'print_or_pdf': 'Yazdır / PDF Kaydet',
+        'welcome_teacher': 'Hoş geldin, {name}',
+        'start_attendance': 'Yoklama Başlat',
+        'week_placeholder': 'Hafta (örnek: 1)',
+        'start_and_open_qr': 'Başlat ve QR Aç',
+        'create_class_first': 'Önce bir ders oluşturman gerekiyor.',
+        'current_classes_and_qr': 'Mevcut Dersler ve QR Kodları',
+        'students_count': 'Öğrenci: {count}',
         'session_active': 'Oturum Aktif',
         'no_active_session': 'Aktif Oturum Yok',
         'class_qr_code': 'Ders QR Kodu',
         'fullscreen': 'Tam Ekran',
-        'qr_not_generated': 'QR kodu henuz uretilmedi.',
+        'qr_not_generated': 'QR kodu henüz üretilmedi.',
         'active_attendance_session': 'Aktif Yoklama Oturumu',
-        'live_attendance': 'Canli Yoklama',
+        'live_attendance': 'Canlı Yoklama',
         'ends_at': 'Biter',
-        'finish_attendance': 'Yoklamayi Bitir',
-        'no_active_session_note': 'Henuz aktif yoklama oturumu yok. Yukaridan Yoklama Baslat ile olusturabilirsin.',
-        'you_have_not_created_class': 'Henuz hic ders olusturmadin.',
-        'popup_blocked': 'Yeni sekme engellendi. Lutfen acilir pencerelere izin ver.',
-        'pass': 'Gecti',
-        'fail': 'Kaldi',
+        'finish_attendance': 'Yoklamayı Bitir',
+        'no_active_session_note': 'Henüz aktif yoklama oturumu yok. Yukarıdan Yoklama Başlat ile oluşturabilirsin.',
+        'you_have_not_created_class': 'Henüz hiç ders oluşturmadın.',
+        'popup_blocked': 'Yeni sekme engellendi. Lütfen açılır pencerelere izin ver.',
+        'pass': 'Geçti',
+        'fail': 'Kaldı',
         'academic_status': 'Akademik Durum',
         'active_value': 'Aktif',
         'program': 'Program',
-        'university_undergraduate_program': 'Universite Lisans Programi',
-        'course_count': 'Ders Sayisi',
-        'grading_system': 'Notlandirma Sistemi',
+        'university_undergraduate_program': 'Üniversite Lisans Programı',
+        'course_count': 'Ders Sayısı',
+        'grading_system': 'Notlandırma Sistemi',
         'letter_grade_400': 'Harf Notu (4.00)',
         'guardian_full_name': 'Veli Ad Soyad',
-        'relationship': 'Yakinlik',
+        'relationship': 'Yakınlık',
         'emergency_phone': 'Acil Durum Telefonu',
         'note': 'Not',
-        'not_set_yet': 'Henuz ayarlanmadi',
-        'family_note': 'Bu alanlar bir sonraki adimda formlar ile duzenlenebilir.',
+        'not_set_yet': 'Henüz ayarlanmadı',
+        'family_note': 'Bu alanlar bir sonraki adımda formlar ile düzenlenebilir.',
         'document_status': 'Belge Durumu',
-        'registration_document': 'Kayit Belgesi',
-        'student_certificate': 'Ogrenci Belgesi',
-        'documents_note': 'Belgeler modulu bu ekranda genisletilecektir.',
-        'no_uploaded_document': 'Henuz yuklenmis belge yok',
+        'registration_document': 'Kayıt Belgesi',
+        'student_certificate': 'Öğrenci Belgesi',
+        'documents_note': 'Belgeler modülü bu ekranda genişletilecektir.',
+        'no_uploaded_document': 'Henüz yüklenmiş belge yok',
         'pending': 'Beklemede',
         'can_be_requested': 'Talep edilebilir',
         'phone': 'Telefon',
         'address': 'Adres',
-        'contact_preference': 'Iletisim Tercihi',
-        'total_debt': 'Toplam Borc',
-        'total_paid': 'Toplam Odenen',
-        'current_balance': 'Guncel Bakiye',
-        'current_account_note': 'Cari hesap modulu burada detaylandirilacaktir.',
-        'last_payment': 'Son Odeme',
-        'payment_method': 'Odeme Yontemi',
-        'scheduled_payment': 'Planli Odeme',
-        'payment_note': 'Odeme modulu bir sonraki adimda genisletilebilir.',
-        'no_record_found': 'Kayit bulunamadi',
-        'undefined': 'Tanimsiz',
+        'contact_preference': 'İletişim Tercihi',
+        'total_debt': 'Toplam Borç',
+        'total_paid': 'Toplam Ödenen',
+        'current_balance': 'Güncel Bakiye',
+        'current_account_note': 'Cari hesap modülü burada detaylandırılacaktır.',
+        'last_payment': 'Son Ödeme',
+        'payment_method': 'Ödeme Yöntemi',
+        'scheduled_payment': 'Planlı Ödeme',
+        'payment_note': 'Ödeme modülü bir sonraki adımda genişletilebilir.',
+        'no_record_found': 'Kayıt bulunamadı',
+        'undefined': 'Tanımsız',
         'none': 'Yok',
-        'current_term': 'Guncel Donem',
-        'registered_course_count': 'Kayitli Ders Sayisi',
-        'registered_courses': 'Kayitli Dersler',
+        'current_term': 'Güncel Dönem',
+        'registered_course_count': 'Kayıtlı Ders Sayısı',
+        'registered_courses': 'Kayıtlı Dersler',
         'status_label': 'Durum',
-        'no_registered_course': 'Henuz kayitli ders yok',
-        'active_term': 'Aktif Donem',
-        'student_label': 'Ogrenci',
+        'no_registered_course': 'Henüz kayıtlı ders yok',
+        'active_term': 'Aktif Dönem',
+        'student_label': 'Öğrenci',
         'gpa_4': 'GPA (4.00)',
-        'weighted_credits': 'Agirlikli Kredi',
-        'no_graded_data': 'Henuz notlandirilmis ders verisi yok.',
-        'calculated_from_courses': '{count} notlandirilmis ders uzerinden hesaplandi.',
-        'transcript_table_not_initialized': 'Transkript tablosu henuz hazir degil.',
-        'today': 'Bugun',
-        'upcoming_academic_events': 'Yaklasan Akademik Etkinlikler',
-        'term_window': 'Donem Araligi',
-        'configured_by_admin': 'Yonetim tarafindan tanimlanir',
-        'academic_calendar_note': 'Akademik takvim etkinlikleri burada detayli listelenecektir.',
-        'upcoming_exams': 'Yaklasan Sinavlar',
-        'completed_exams': 'Tamamlanan Sinavlar',
-        'next_exam_date': 'Sonraki Sinav Tarihi',
-        'not_scheduled': 'Planlanmadi',
-        'exam_module_note': 'Sinav yonetimi modulu bir sonraki adimda genisletilebilir.',
-        'already_enrolled_named': "'{name}' dersine zaten kayitlisin.",
-        'no_class_found_named': "'{name}' adinda bir ders bulunamadi.",
+        'weighted_credits': 'Ağırlıklı AKTS',
+        'no_graded_data': 'Henüz notlandırılmış ders verisi yok.',
+        'advisor_student_not_found': 'Öğrenci bulunamadı.',
+        'advisor_must_be_teacher': 'Danışman bir öğretmen olmalı.',
+        'advisor_update_failed': 'Danışman güncellenemedi (veritabanı hatası).',
+        'advisor_updated': 'Danışman güncellendi.',
+        'advisee_not_found': 'Bu öğrenci senin danışmanlık öğrencin değil.',
+        'view_as_read_only': 'Salt okunur öğrenci görünümü: bu işlem yapılamaz.',
+        'calculated_from_courses': '{count} notlandırılmış ders üzerinden hesaplandı.',
+        'transcript_table_not_initialized': 'Transkript tablosu henüz hazır değil.',
+        'today': 'Bugün',
+        'upcoming_academic_events': 'Yaklaşan Akademik Etkinlikler',
+        'term_window': 'Dönem Aralığı',
+        'configured_by_admin': 'Yönetim tarafından tanımlanır',
+        'academic_calendar_note': 'Akademik takvim etkinlikleri burada detaylı listelenecektir.',
+        'upcoming_exams': 'Yaklaşan Sınavlar',
+        'completed_exams': 'Tamamlanan Sınavlar',
+        'next_exam_date': 'Sonraki Sınav Tarihi',
+        'not_scheduled': 'Planlanmadı',
+        'exam_module_note': 'Sınav yönetimi modülü bir sonraki adımda genişletilebilir.',
+        'already_enrolled_named': "'{name}' dersine zaten kayıtlısın.",
+        'no_class_found_named': "'{name}' adında bir ders bulunamadı.",
         'identity_information': 'Kimlik Bilgileri',
-        'identity_information_desc': 'Ogrenci kimligi ve temel profil bilgileri.',
-        'education_information': 'Egitim Bilgileri',
-        'education_information_desc': 'Bolum, program, donem ve akademik durum.',
-        'education_reset_note': 'Bu bolum temizlendi. Burayi sifirdan birlikte olusturacagiz.',
-        'university_information': 'Universite Bilgileri',
-        'entry_place': 'Giris Yeri',
-        'entry_type': 'Giris Tipi',
-        'academic_year': 'Akademik Yil',
-        'term': 'Donem',
-        'faculty': 'Fakulte',
-        'department': 'Bolum',
-        'scholarship_type': 'Burs Turu',
-        'placement_type': 'Yerlesme Turu',
-        'score_type': 'Puan Turu',
-        'achievement_score': 'Basari Puani',
-        'placement_score': 'Yerlesme Puani',
-        'preference_order': 'Tercih Sirasi',
+        'identity_information_desc': 'Öğrenci kimliği ve temel profil bilgileri.',
+        'education_information': 'Eğitim Bilgileri',
+        'education_information_desc': 'Bölüm, program, dönem ve akademik durum.',
+        'education_reset_note': 'Bu bölüm temizlendi. Burayı sıfırdan birlikte oluşturacağız.',
+        'university_information': 'Üniversite Bilgileri',
+        'entry_place': 'Giriş Yeri',
+        'entry_type': 'Giriş Tipi',
+        'academic_year': 'Akademik Yıl',
+        'term': 'Dönem',
+        'faculty': 'Fakülte',
+        'department': 'Bölüm',
+        'scholarship_type': 'Burs Türü',
+        'placement_type': 'Yerleşme Türü',
+        'score_type': 'Puan Türü',
+        'achievement_score': 'Başarı Puanı',
+        'placement_score': 'Yerleşme Puanı',
+        'preference_order': 'Tercih Sırası',
         'highschool_information': 'Lise Bilgileri',
-        'highschool_name': 'Lise Adi',
+        'highschool_name': 'Lise Adı',
         'highschool_info': 'Lise Bilgisi',
         'highschool_graduation_date': 'Mezuniyet Tarihi',
         'family_information': 'Aile Bilgileri',
-        'family_information_desc': 'Aile iletisimi ve yakin bilgileri.',
+        'family_information_desc': 'Aile iletişimi ve yakın bilgileri.',
         'documents': 'Belgeler',
-        'documents_desc': 'Belge ve sertifika islemleri.',
-        'contact': 'Iletisim',
-        'contact_desc': 'Iletisim tercihleri ve adres bilgileri.',
+        'documents_desc': 'Belge ve sertifika işlemleri.',
+        'contact': 'İletişim',
+        'contact_desc': 'İletişim tercihleri ve adres bilgileri.',
         'current_account': 'Cari Hesap',
-        'current_account_desc': 'Bakiye, borc ve alacak ozeti.',
-        'payments': 'Odemeler',
-        'payments_desc': 'Odeme gecmisi ve yeni odeme islemleri.',
-        'absence': 'Devamsizlik',
-        'absence_desc': 'Tam yoklama akisiyla devamsizlik analizi.',
-        'term_courses': 'Donem Dersleri',
-        'term_courses_desc': 'Guncel donem ders listesi ve yuk bilgisi.',
+        'current_account_desc': 'Bakiye, borç ve alacak özeti.',
+        'payments': 'Ödemeler',
+        'payments_desc': 'Ödeme geçmişi ve yeni ödeme işlemleri.',
+        'absence': 'Devamsızlık',
+        'absence_desc': 'Tam yoklama akışıyla devamsızlık analizi.',
+        'term_courses': 'Dönem Dersleri',
+        'term_courses_desc': 'Güncel dönem ders listesi ve yuk bilgisi.',
         'transcript': 'Transkript',
-        'transcript_desc': 'Not ozeti ve ortalama gorunumu.',
+        'transcript_desc': 'Not özeti ve ortalama görünümü.',
         'academic_calendar': 'Akademik Takvim',
-        'academic_calendar_desc': 'Onemli tarihler ve akademik etkinlikler.',
-        'exams': 'Sinavlar',
-        'exams_desc': 'Yaklasan ve tamamlanan sinav bilgileri.',
-        'modules': 'Moduller',
+        'academic_calendar_desc': 'Önemli tarihler ve akademik etkinlikler.',
+        'exams': 'Sınavlar',
+        'exams_desc': 'Yaklaşan ve tamamlanan sınav bilgileri.',
+        'modules': 'Modüller',
     },
 }
 
@@ -739,27 +752,13 @@ def _normalize_samesite(value: str | None) -> str:
     return 'Lax'
 
 
-def _resolve_app_database_uri() -> str:
-    """Resolve SQLAlchemy DB URI with secure/env-aware precedence.
-
-    Priority:
-    1) DATABASE_URL (primary app/runtime setting)
-    2) ALEMBIC_DB_URL (migration rehearsal compatibility)
-    3) local SQLite fallback
-    """
-    env_url = (os.getenv('DATABASE_URL') or os.getenv('ALEMBIC_DB_URL') or '').strip()
-    if env_url:
-        # SQLAlchemy expects postgresql:// prefix; accept Heroku-style postgres:// too.
-        if env_url.startswith('postgres://'):
-            return env_url.replace('postgres://', 'postgresql://', 1)
-        return env_url
-    return 'sqlite:///attendance.db'
+load_dotenv()
 
 # ------------------ APP INIT ------------------
 app = Flask(__name__)
 # Stable fallback secret for local development so debug reloads do not invalidate sessions.
 app.secret_key = os.getenv('FLASK_SECRET_KEY') or 'dev-local-secret-key-change-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = _resolve_app_database_uri()
+app.config['SQLALCHEMY_DATABASE_URI'] = resolve_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Base URL encoded in QR codes for phone scanning (example: http://192.168.1.25:5000)
 app.config['QR_BASE_URL'] = os.getenv('QR_BASE_URL', f"http://{_detect_local_ip()}:5000").rstrip('/')
@@ -842,8 +841,8 @@ def enforce_account_lock_policy():
     flash('Hesabınız kilitlenmiş. Lütfen bir yönetici ile iletişime geçin.', 'danger')
     return redirect(url_for('login'))
 
-# --- DB Migration Helpers (SQLite) ---
-# Adds new columns if they don't exist yet (works with SQLite and PostgreSQL).
+# --- DB Migration Helpers ---
+# Adds new columns if they don't exist yet.
 def _ensure_column(table: str, column: str, definition: str):
     with app.app_context():
         from sqlalchemy import inspect as sa_inspect
@@ -995,6 +994,101 @@ def inject_i18n_helpers():
         'current_lang': _get_language(),
         'csrf_token': _get_or_create_csrf_token,
     }
+
+
+# ------------------ ANNOUNCEMENTS ------------------
+def _announcements_for_user(user, role, include_expired=False):
+    """Query of announcements addressed to this user.
+
+    Students and teachers get announcements targeted at their role (or everyone) that are either general
+    or tied to one of their courses. Admins oversee everything. Scheduled ones never show early; expired
+    ones are kept only when include_expired is set (the inbox keeps history, dashboards do not).
+    """
+    now = datetime.datetime.now()
+    query = Announcement.query.filter((Announcement.starts_at.is_(None)) | (Announcement.starts_at <= now))
+    if not include_expired:
+        query = query.filter((Announcement.ends_at.is_(None)) | (Announcement.ends_at >= now))
+    if role in {'admin', 'registrar'}:  # staff oversee every announcement
+        return query
+
+    query = query.filter(
+        (Announcement.target_role.is_(None)) | (Announcement.target_role == 'all') | (Announcement.target_role == role)
+    )
+    if role in ('teacher', 'assistant'):
+        if role == 'teacher':
+            course_ids = [course.id for course in user.courses_taught]
+        else:
+            codes = [f'CLS{c.id:04d}' for c in user.assisted_classes]
+            course_ids = [c.id for c in Course.query.filter(Course.code.in_(codes or ['']))]
+        query = query.filter(Announcement.group_id.is_(None))  # department groups address students
+    else:
+        student = db.session.get(Student, user.id)
+        course_ids = [e.course_id for e in student.course_enrollments if e.approved] if student else []
+        group_ids = [group.id for group in student.groups] if student else []
+        query = query.filter((Announcement.group_id.is_(None)) | (Announcement.group_id.in_(group_ids or [-1])))
+    if course_ids:
+        return query.filter((Announcement.course_id.is_(None)) | (Announcement.course_id.in_(course_ids)))
+    return query.filter(Announcement.course_id.is_(None))
+
+
+def _unread_announcement_count(user, role):
+    """Bell badge: announcements newer than the last inbox visit + unread personal messages."""
+    query = _announcements_for_user(user, role, include_expired=True).filter(Announcement.author_id != user.id)
+    if user.announcements_seen_at:
+        query = query.filter(Announcement.created_at > user.announcements_seen_at)
+    unread_messages = Message.query.filter_by(recipient_id=user.id, is_read=False).count()
+    return query.count() + unread_messages
+
+
+def _mailbox_item(obj):
+    """Normalise an Announcement or a personal Message into one mailbox row."""
+    if isinstance(obj, Message):
+        return {
+            'key': f'm{obj.id}', 'kind': 'message', 'obj': obj,
+            'title': obj.subject or _lang_text('(Konusuz)', '(No subject)'), 'body': obj.body,
+            'sender': obj.sender.name if obj.sender else '-',
+            'recipient': obj.recipient.name if obj.recipient else '-',
+            'created_at': obj.sent_at, 'course': None, 'group': None, 'ends_at': None,
+        }
+    return {
+        'key': f'a{obj.id}', 'kind': 'announcement', 'obj': obj,
+        'title': obj.title, 'body': obj.body,
+        'sender': obj.author.name if obj.author else '-',
+        'recipient': None,  # rendered from target_role / group in the template
+        'created_at': obj.created_at, 'course': obj.course, 'group': obj.group, 'ends_at': obj.ends_at,
+    }
+
+
+def _resolve_recipient(raw):
+    """Find a user from the composer's person field: 'Name <email>', an e-mail, or a unique name."""
+    raw = (raw or '').strip()
+    match = re.search(r'<([^<>@\s]+@[^<>\s]+)>', raw)
+    email = (match.group(1) if match else raw).strip().lower()
+    if '@' in email:
+        return User.query.filter(func.lower(User.email) == email).first()
+    candidates = User.query.filter(func.lower(User.name) == raw.lower()).limit(2).all()
+    return candidates[0] if len(candidates) == 1 else None
+
+
+# ------------------ TOP NAVIGATION ------------------
+@app.context_processor
+def inject_top_nav():
+    """Signed-in user's name, role and unread announcement count for the shared top navigation."""
+    origin = session.get('view_as_origin')
+    user_id = origin['user_id'] if origin else session.get('user_id')
+    role = origin['role'] if origin else session.get('role')
+    empty = {'nav_role': None, 'nav_user_name': None, 'nav_unread_announcements': 0}
+    if not user_id or role not in ROLE_DASHBOARDS:
+        return empty
+    user = db.session.get(User, user_id)
+    if not user:
+        return empty
+    try:
+        unread = _unread_announcement_count(user, role)
+    except Exception:
+        db.session.rollback()
+        unread = 0
+    return {'nav_role': role, 'nav_user_name': user.name, 'nav_unread_announcements': unread}
 
 
 def csrf_protect(f):
@@ -1159,6 +1253,23 @@ def collect_request_metrics(response):
     return response
 
 
+# wttr.in weather codes -> Turkish (its own lang=tr text is often still English).
+WEATHER_CODES_TR = {
+    '113': 'Açık', '116': 'Parçalı bulutlu', '119': 'Bulutlu', '122': 'Kapalı',
+    '143': 'Puslu', '248': 'Sisli', '260': 'Dondurucu sis',
+    '176': 'Yer yer yağmur', '263': 'Çisenti', '266': 'Çisenti', '281': 'Dondurucu çisenti', '284': 'Dondurucu çisenti',
+    '293': 'Hafif yağmur', '296': 'Hafif yağmur', '299': 'Yağmurlu', '302': 'Yağmurlu', '305': 'Şiddetli yağmur',
+    '308': 'Şiddetli yağmur', '311': 'Dondurucu yağmur', '314': 'Dondurucu yağmur', '353': 'Hafif sağanak',
+    '356': 'Sağanak yağış', '359': 'Kuvvetli sağanak', '200': 'Yakında gök gürültülü sağanak',
+    '386': 'Gök gürültülü yağmur', '389': 'Gök gürültülü kuvvetli yağmur', '392': 'Gök gürültülü kar',
+    '395': 'Gök gürültülü yoğun kar', '179': 'Yer yer kar', '182': 'Karla karışık yağmur', '185': 'Karla karışık yağmur',
+    '317': 'Karla karışık yağmur', '320': 'Karla karışık yağmur', '362': 'Karla karışık sağanak',
+    '365': 'Karla karışık sağanak', '227': 'Tipi', '230': 'Kar fırtınası', '323': 'Hafif kar', '326': 'Hafif kar',
+    '329': 'Kar yağışlı', '332': 'Kar yağışlı', '335': 'Yoğun kar', '338': 'Yoğun kar', '368': 'Kar sağanağı',
+    '371': 'Kuvvetli kar sağanağı', '350': 'Dolu', '374': 'Dolu', '377': 'Dolu',
+}
+
+
 def _fetch_weather(city: str | None = None, lat: float | None = None, lon: float | None = None) -> dict | None:
     """Fetch current weather from wttr.in using coordinates when available, with city fallback."""
     query = None
@@ -1175,7 +1286,7 @@ def _fetch_weather(city: str | None = None, lat: float | None = None, lon: float
 
     try:
         req = Request(
-            f"https://wttr.in/{query}?format=j1",
+            f"https://wttr.in/{query}?format=j1&lang=tr",
             headers={"User-Agent": "qr-attendance-portal/1.0"},
         )
         with urlopen(req, timeout=3.0) as resp:
@@ -1185,10 +1296,17 @@ def _fetch_weather(city: str | None = None, lat: float | None = None, lon: float
         desc_list = current.get('weatherDesc') or [{}]
         nearest = (payload.get('nearest_area') or [{}])[0]
         area_name = ((nearest.get('areaName') or [{}])[0]).get('value') if nearest else None
+        today = (payload.get('weather') or [{}])[0]
+        condition_tr = ((current.get('lang_tr') or [{}])[0]).get('value')
+        condition_en = desc_list[0].get('value', 'Unknown')
         return {
             'city': area_name or display_city or 'Unknown',
             'temperature_c': current.get('temp_C', '-'),
-            'condition': desc_list[0].get('value', 'Unknown'),
+            'min_c': today.get('mintempC', '-'),
+            'max_c': today.get('maxtempC', '-'),
+            'code': current.get('weatherCode', ''),
+            'condition': _lang_text(WEATHER_CODES_TR.get(str(current.get('weatherCode', ''))) or condition_tr or condition_en,
+                                    condition_en),
             'humidity': current.get('humidity', '-'),
             'wind_kmph': current.get('windspeedKmph', '-'),
             'source': 'location' if lat is not None and lon is not None else 'city',
@@ -1198,7 +1316,10 @@ def _fetch_weather(city: str | None = None, lat: float | None = None, lon: float
         return {
             'city': display_city or 'Unknown',
             'temperature_c': '-',
-            'condition': 'Unavailable',
+            'min_c': '-',
+            'max_c': '-',
+            'code': '',
+            'condition': _lang_text('Alınamadı', 'Unavailable'),
             'humidity': '-',
             'wind_kmph': '-',
             'source': 'location' if lat is not None and lon is not None else 'city',
@@ -1212,10 +1333,15 @@ with app.app_context():
     _ensure_column('classes', 'qr_token', 'TEXT')
     _ensure_column('classes', 'qr_filename', 'TEXT')
     _ensure_column('users', 'is_locked', 'BOOLEAN DEFAULT 0')
+    _ensure_column('users', 'announcements_seen_at', 'TIMESTAMP')
+    _ensure_column('announcements', 'group_id', 'INTEGER REFERENCES student_groups(id)')
+    _ensure_column('grade_records', 'entered_by_id', 'INTEGER REFERENCES users(id)')
     _ensure_column('attendance_sessions', 'active', 'BOOLEAN DEFAULT 0')
     _ensure_column('attendance_sessions', 'confirmed', 'BOOLEAN DEFAULT 0')
     _ensure_column('courses', 'capacity', 'INTEGER DEFAULT 60')
     _ensure_column('courses', 'schedule_slot', 'TEXT')
+    _ensure_column('courses', 'ects', 'INTEGER NOT NULL DEFAULT 6')
+    _ensure_column('course_enrollments', 'approved', 'BOOLEAN NOT NULL DEFAULT TRUE')  # existing rows stay official
     _ensure_column('announcements', 'starts_at', 'DATETIME')
     _ensure_column('announcements', 'ends_at', 'DATETIME')
     _ensure_column('students', 'first_name', 'TEXT')
@@ -1258,6 +1384,15 @@ with app.app_context():
     _ensure_column('students', 'highschool_name', 'TEXT')
     _ensure_column('students', 'highschool_info', 'TEXT')
     _ensure_column('students', 'highschool_graduation_date', 'DATE')
+    _ensure_column('students', 'advisor_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL')
+    _ensure_column('student_groups', 'advisor_id', 'INTEGER REFERENCES users(id) ON DELETE SET NULL')
+    _ensure_column('students', 'photo_filename', 'VARCHAR(120)')
+    _ensure_column('users', 'academic_title', 'VARCHAR(60)')
+    _ensure_column('users', 'faculty', 'VARCHAR(140)')
+    _ensure_column('users', 'department', 'VARCHAR(140)')
+    _ensure_column('users', 'office', 'VARCHAR(80)')
+    _ensure_column('users', 'office_hours', 'VARCHAR(160)')
+    _ensure_column('users', 'photo_filename', 'VARCHAR(120)')
 
     # Generate/update class QR files in URL format for all classes.
     qr_folder = os.path.join(app.root_path, "static", "qrcodes")
@@ -1286,14 +1421,52 @@ def login_required_session(f):
     return decorated_function
 
 
+ROLE_DASHBOARDS = {
+    'admin': 'admin_dashboard',
+    'registrar': 'registrar_dashboard',
+    'teacher': 'teacher_dashboard',
+    'assistant': 'assistant_dashboard',
+    'student': 'student_dashboard',
+}
+
+
+# Announcement audiences: "all" plus every role. A new role in ROLE_DASHBOARDS shows up automatically;
+# add a label here to give it a proper plural name.
+AUDIENCE_LABELS = {
+    'all': ('Herkes', 'Everyone'),
+    'student': ('Öğrenciler', 'Students'),
+    'teacher': ('Öğretmenler', 'Teachers'),
+    'assistant': ('Asistanlar', 'Assistants'),
+    'registrar': ('Öğrenci İşleri', 'Student Affairs'),
+    'admin': ('Adminler', 'Admins'),
+}
+ANNOUNCEMENT_TARGETS = {'all', *ROLE_DASHBOARDS}
+
+
+@app.template_global()
+def audience_options():
+    """[(value, label)] for announcement recipient pickers, 'all' first."""
+    ordered = [r for r in AUDIENCE_LABELS if r in ANNOUNCEMENT_TARGETS]
+    ordered += sorted(r for r in ANNOUNCEMENT_TARGETS if r not in AUDIENCE_LABELS)
+    return [(r, _lang_text(*AUDIENCE_LABELS[r]) if r in AUDIENCE_LABELS else r.title()) for r in ordered]
+
+
+def _dashboard_endpoint_for(role):
+    """Home page endpoint for a role (teacher dashboard for anything unknown, as before)."""
+    return ROLE_DASHBOARDS.get(role, 'teacher_dashboard')
+
+
 def role_required(required_role):
+    """Allow a single role ('admin') or several (('admin', 'registrar'))."""
+    allowed_roles = (required_role,) if isinstance(required_role, str) else tuple(required_role)
+
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if 'user_id' not in session:
                 flash('Lütfen önce giriş yapın!', 'danger')
                 return redirect(url_for('login', next=request.url))
-            if session.get('role') != required_role:
+            if session.get('role') not in allowed_roles:
                 return redirect(url_for('login'))
             return f(*args, **kwargs)
         return decorated_function
@@ -1350,8 +1523,21 @@ PERMISSIONS = {
     'ADMIN_METRICS_READ': 'admin.metrics.read',
     'ADMIN_PERMISSION_MATRIX_READ': 'admin.permission_matrix.read',
     'ADMIN_NOTIFICATION_SEND': 'admin.notification.send',
+    'ADMIN_GROUP_MANAGE': 'admin.group.manage',
+    'ADMIN_ACCOUNT_UPDATE': 'admin.account.update',
+    'REGISTRAR_DASHBOARD_VIEW': 'registrar.dashboard.view',
+    'REGISTRAR_DASHBOARD_CALENDAR_UPDATE': 'registrar.dashboard.calendar.update',
+    'REGISTRAR_ACCOUNT_UPDATE': 'registrar.account.update',
+    'TEACHER_ASSISTANT_MANAGE': 'teacher.assistant.manage',
+    'ASSISTANT_DASHBOARD_VIEW': 'assistant.dashboard.view',
+    'ASSISTANT_DASHBOARD_CALENDAR_UPDATE': 'assistant.dashboard.calendar.update',
+    'ASSISTANT_ACCOUNT_UPDATE': 'assistant.account.update',
     'ADMIN_COURSE_REGISTRATION_MANAGE': 'admin.course_registration.manage',
     'ADMIN_COURSE_REGISTRATION_OVERRIDE': 'admin.course_registration.override',
+    'ADMIN_STUDENT_ADVISOR_ASSIGN': 'admin.student.advisor_assign',
+    'TEACHER_ADVISEE_READ': 'teacher.advisee.read',
+    'TEACHER_STUDENT_VIEW': 'teacher.student.view',
+    'TEACHER_TERM_PLAN_DECIDE': 'teacher.term_plan.decide',
 }
 
 PERMISSION_MAP = {
@@ -1401,8 +1587,21 @@ PERMISSION_MAP = {
     'admin_health_status_report': PERMISSIONS['ADMIN_METRICS_READ'],
     'admin_permission_matrix': PERMISSIONS['ADMIN_PERMISSION_MATRIX_READ'],
     'admin_notifications': PERMISSIONS['ADMIN_NOTIFICATION_SEND'],
+    'admin_groups': PERMISSIONS['ADMIN_GROUP_MANAGE'],
+    'admin_account': PERMISSIONS['ADMIN_ACCOUNT_UPDATE'],
+    'registrar_dashboard': PERMISSIONS['REGISTRAR_DASHBOARD_VIEW'],
+    'registrar_account': PERMISSIONS['REGISTRAR_ACCOUNT_UPDATE'],
+    'teacher_class_assistants': PERMISSIONS['TEACHER_ASSISTANT_MANAGE'],
+    'assistant_dashboard': PERMISSIONS['ASSISTANT_DASHBOARD_VIEW'],
+    'assistant_account': PERMISSIONS['ASSISTANT_ACCOUNT_UPDATE'],
     'admin_course_registration_window': PERMISSIONS['ADMIN_COURSE_REGISTRATION_MANAGE'],
     'admin_course_registration_override': PERMISSIONS['ADMIN_COURSE_REGISTRATION_OVERRIDE'],
+    'admin_set_student_advisor': PERMISSIONS['ADMIN_STUDENT_ADVISOR_ASSIGN'],
+    'teacher_advisees': PERMISSIONS['TEACHER_ADVISEE_READ'],
+    'teacher_advisee_detail': PERMISSIONS['TEACHER_ADVISEE_READ'],
+    'teacher_view_student': PERMISSIONS['TEACHER_STUDENT_VIEW'],
+    'teacher_term_plan_decision': PERMISSIONS['TEACHER_TERM_PLAN_DECIDE'],
+    'student_term_plan_submit': PERMISSIONS['STUDENT_TERM_COURSES_UPDATE'],
 }
 
 ROLE_PERMISSIONS = {
@@ -1423,6 +1622,28 @@ ROLE_PERMISSIONS = {
         PERMISSIONS['TEACHER_SESSION_STOP'],
         PERMISSIONS['TEACHER_REPORT_READ'],
         PERMISSIONS['TEACHER_DASHBOARD_CALENDAR_UPDATE'],
+        PERMISSIONS['TEACHER_ASSISTANT_MANAGE'],
+        PERMISSIONS['TEACHER_ADVISEE_READ'],
+        PERMISSIONS['TEACHER_STUDENT_VIEW'],
+        PERMISSIONS['TEACHER_TERM_PLAN_DECIDE'],
+    },
+    # Teaching assistant: attendance, roster and grade entry, only in classes the teacher assigned them to
+    # (scope enforced by ensure_teacher_class_ownership / _accessible_classes). No session delete,
+    # class creation, teacher dashboard or reports.
+    'assistant': {
+        PERMISSIONS['ASSISTANT_DASHBOARD_VIEW'],
+        PERMISSIONS['ASSISTANT_DASHBOARD_CALENDAR_UPDATE'],
+        PERMISSIONS['ASSISTANT_ACCOUNT_UPDATE'],
+        PERMISSIONS['TEACHER_DASHBOARD_VIEW'],
+        PERMISSIONS['TEACHER_CLASS_READ'],
+        PERMISSIONS['TEACHER_CLASS_HISTORY_READ'],
+        PERMISSIONS['TEACHER_CLASS_HISTORY_EXPORT'],
+        PERMISSIONS['TEACHER_SESSION_STATS_READ'],
+        PERMISSIONS['TEACHER_SESSION_READ'],
+        PERMISSIONS['TEACHER_QR_VIEW'],
+        PERMISSIONS['TEACHER_SESSION_CREATE'],
+        PERMISSIONS['TEACHER_SESSION_UPDATE_ATTENDANCE'],
+        PERMISSIONS['TEACHER_SESSION_STOP'],
     },
     'student': {
         PERMISSIONS['STUDENT_ACCOUNT_READ'],
@@ -1446,6 +1667,17 @@ ROLE_PERMISSIONS = {
         PERMISSIONS['STUDENT_CLASS_HISTORY_READ'],
         PERMISSIONS['STUDENT_ATTENDANCE_MARK'],
         PERMISSIONS['STUDENT_REPORT_READ'],
+    },
+    # Student Affairs (Öğrenci İşleri): department groups, announcements, user list read-only
+    # plus password reset for student accounts only (enforced in admin_reset_user_password).
+    'registrar': {
+        PERMISSIONS['REGISTRAR_DASHBOARD_VIEW'],
+        PERMISSIONS['REGISTRAR_DASHBOARD_CALENDAR_UPDATE'],
+        PERMISSIONS['REGISTRAR_ACCOUNT_UPDATE'],
+        PERMISSIONS['ADMIN_GROUP_MANAGE'],
+        PERMISSIONS['ADMIN_NOTIFICATION_SEND'],
+        PERMISSIONS['ADMIN_USER_READ'],
+        PERMISSIONS['ADMIN_USER_PASSWORD_RESET'],
     },
     'admin': set(PERMISSIONS.values()),
 }
@@ -1509,8 +1741,39 @@ def ensure_permission(permission_key, redirect_endpoint='login'):
     return redirect(url_for(redirect_endpoint))
 
 
+def _accessible_classes(user):
+    """Classes the signed-in teacher owns, or the classes an assistant was assigned to."""
+    if session.get('role') == 'assistant':
+        return sorted(user.assisted_classes, key=lambda c: c.name or '')
+    return Class.query.filter_by(teacher_id=user.id).all()
+
+
+def _accessible_courses(user):
+    """Course records the teacher owns, or those linked (CLS<class id>) to an assistant's classes."""
+    if session.get('role') == 'assistant':
+        codes = [f'CLS{c.id:04d}' for c in user.assisted_classes]
+        return Course.query.filter(Course.code.in_(codes or [''])).order_by(Course.code.asc()).all()
+    return Course.query.filter_by(teacher_id=user.id).order_by(Course.code.asc()).all()
+
+
+def _accessible_class_or_404(class_id):
+    class_obj = db.session.get(Class, class_id)
+    if not _can_access_class(class_obj):
+        abort(404)
+    return class_obj
+
+
+def _can_access_class(class_obj):
+    user_id = session.get('user_id')
+    if not class_obj or not user_id:
+        return False
+    if class_obj.teacher_id == user_id:
+        return True
+    return session.get('role') == 'assistant' and any(a.id == user_id for a in class_obj.assistants)
+
+
 def ensure_teacher_class_ownership(class_obj, on_fail='login', fail_message=None):
-    if class_obj and class_obj.teacher_id == session.get('user_id'):
+    if _can_access_class(class_obj):
         return None
 
     app.logger.warning(
@@ -1667,6 +1930,73 @@ def _serialize_user_calendar_events(user_id):
     return all_events, upcoming_events, serialized_events
 
 
+def _dashboard_weather():
+    """Home-page weather: ?city= or ?lat&lon from the page, remembered in the session."""
+    city_arg = (request.args.get('city') or '').strip()[:50]
+    lat_arg = (request.args.get('lat') or '').strip()
+    lon_arg = (request.args.get('lon') or '').strip()
+
+    # Manual city search takes precedence and clears the location cache.
+    if city_arg:
+        session['weather_city'] = city_arg
+        session.pop('weather_lat', None)
+        session.pop('weather_lon', None)
+
+    if lat_arg and lon_arg:
+        try:
+            parsed_lat, parsed_lon = float(lat_arg), float(lon_arg)
+            if -90 <= parsed_lat <= 90 and -180 <= parsed_lon <= 180:
+                session['weather_lat'] = parsed_lat
+                session['weather_lon'] = parsed_lon
+        except ValueError:
+            pass
+
+    weather_lat, weather_lon = session.get('weather_lat'), session.get('weather_lon')
+    if weather_lat is not None and weather_lon is not None:
+        return _fetch_weather(lat=float(weather_lat), lon=float(weather_lon))
+    return _fetch_weather(city=session.get('weather_city') or 'Lefkosa')
+
+
+def _name_initials(name):
+    return ''.join(part[0] for part in (name or '?').split()[:2]).upper()
+
+
+def _render_home_dashboard(user, role, endpoint, page_title, profile, calendar_events, upcoming_event_count):
+    """Shared home page for every role: profile card | calendar | weather + announcements."""
+    weather = _dashboard_weather()
+    try:
+        announcements = _announcements_for_user(user, role).order_by(Announcement.created_at.desc()).limit(6).all()
+    except Exception:
+        db.session.rollback()
+        announcements = []
+    profile.setdefault('initials', _name_initials(profile.get('name')))
+    return render_template(
+        'home_dashboard.html',
+        page_title=page_title,
+        user_name=user.name,
+        profile=profile,
+        dashboard_url=url_for(endpoint),
+        calendar_events=calendar_events,
+        upcoming_event_count=upcoming_event_count,
+        weather=weather,
+        weather_using_location=bool(weather and weather.get('source') == 'location'),
+        announcements=announcements,
+    )
+
+
+def _staff_profile(user, role_label, edit_endpoint, stats):
+    """Profile card for staff without an academic profile (admin, registrar, assistant)."""
+    return {
+        'name': user.name,
+        'facts': [
+            (_lang_text('E-posta', 'E-mail'), user.email),
+            (_lang_text('Rol', 'Role'), role_label),
+        ],
+        'stats': stats,
+        'edit_url': url_for(edit_endpoint),
+    }
+
+
 def permission_required(permission_key=None):
     def decorator(f):
         @wraps(f)
@@ -1691,7 +2021,7 @@ def permission_required(permission_key=None):
 
 
 def validate_admin_role_update(actor_user_id, actor_role, target_user_id, target_user_role, new_role, admin_count):
-    allowed_roles = {'student', 'teacher', 'admin'}
+    allowed_roles = {'student', 'teacher', 'assistant', 'registrar', 'admin'}
     if actor_role != 'admin':
         return 'Only admin can update roles.'
     if new_role not in allowed_roles:
@@ -1866,9 +2196,7 @@ def set_language():
 def register():
     # If already logged in, redirect to the dashboard.
     if 'user_id' in session:
-        if session.get('role') == 'student':
-            return redirect(url_for('student_dashboard'))
-        return redirect(url_for('teacher_dashboard'))
+        return redirect(url_for(_dashboard_endpoint_for(session.get('role'))))
 
     if request.method == 'POST':
         name = _normalize_form_text(request.form.get('name'), max_length=120)
@@ -1948,11 +2276,7 @@ def login():
     if 'user_id' in session:
         if _is_safe_next_url(next_url):
             return redirect(next_url)
-        if session.get('role') == 'student':
-            return redirect(url_for('student_dashboard'))
-        if session.get('role') == 'admin':
-            return redirect(url_for('admin_dashboard'))
-        return redirect(url_for('teacher_dashboard'))
+        return redirect(url_for(_dashboard_endpoint_for(session.get('role'))))
 
     if request.method == 'POST':
         email = _normalize_form_text(request.form.get('email'), max_length=254).lower()
@@ -1996,12 +2320,7 @@ def login():
             flash('Giriş başarılı!', 'success')
             if _is_safe_next_url(next_url):
                 return redirect(next_url)
-            if user.role == 'student':
-                return redirect(url_for('student_dashboard'))
-            if user.role == 'admin':
-                return redirect(url_for('admin_dashboard'))
-            else:  # teacher
-                return redirect(url_for('teacher_dashboard'))
+            return redirect(url_for(_dashboard_endpoint_for(user.role)))
 
         if _record_login_failure_and_lock(user, email):
             flash('Hesabınız kilitlenmiş. Lütfen bir yönetici ile iletişime geçin.', 'danger')
@@ -2011,6 +2330,11 @@ def login():
         return redirect(url_for('login', next=next_url) if next_url else url_for('login'))
 
     return render_template('login.html', next_url=next_url)
+
+
+@app.route('/')
+def index():
+    return redirect(url_for(ROLE_DASHBOARDS.get(session.get('role'), 'login')))
 
 # ------------------ LOGOUT ------------------
 @app.route('/logout')
@@ -2030,65 +2354,15 @@ def admin_dashboard():
     if request.method == 'POST':
         return _handle_user_calendar_dashboard_post(admin_user, PERMISSIONS['ADMIN_DASHBOARD_CALENDAR_UPDATE'], 'admin_dashboard')
 
-    teacher_count = User.query.filter_by(role='teacher').count()
-    student_count = User.query.filter_by(role='student').count()
-    class_count = Class.query.count()
-    active_session_count = AttendanceSession.query.filter_by(active=True).count()
-
-    try:
-        persisted_audit_count = PermissionAuditLog.query.count()
-    except Exception:
-        db.session.rollback()
-        persisted_audit_count = 0
-
-    # Weather
-    weather_city = (request.args.get('city') or session.get('weather_city') or 'Lefkosa').strip()
-    lat_arg = (request.args.get('lat') or '').strip()
-    lon_arg = (request.args.get('lon') or '').strip()
-    weather_lat = session.get('weather_lat')
-    weather_lon = session.get('weather_lon')
-
-    if lat_arg and lon_arg:
-        try:
-            parsed_lat = float(lat_arg)
-            parsed_lon = float(lon_arg)
-            if -90 <= parsed_lat <= 90 and -180 <= parsed_lon <= 180:
-                weather_lat = parsed_lat
-                weather_lon = parsed_lon
-                session['weather_lat'] = parsed_lat
-                session['weather_lon'] = parsed_lon
-        except ValueError:
-            pass
-
-    if request.args.get('city'):
-        session['weather_city'] = weather_city
-        weather_lat = None
-        weather_lon = None
-
-    if weather_lat is not None and weather_lon is not None:
-        weather = _fetch_weather(lat=float(weather_lat), lon=float(weather_lon))
-    else:
-        weather = _fetch_weather(city=weather_city)
-
-    _, admin_upcoming_events, admin_calendar_events = _serialize_user_calendar_events(admin_user.id) if admin_user else ([], [], [])
-    stats = {
-        'teacher_count': teacher_count,
-        'student_count': student_count,
-        'class_count': class_count,
-        'active_session_count': active_session_count,
-        'permission_denied_total': persisted_audit_count + len(PERMISSION_AUDIT_EVENTS),
-        'calendar_total_count': len(admin_calendar_events),
-        'upcoming_events_count': len(admin_upcoming_events),
-    }
-    return render_template(
-        'admin_dashboard.html',
-        stats=stats,
-        weather=weather,
-        weather_using_location=bool(weather and weather.get('source') == 'location'),
-        admin_name=admin_user.name if admin_user else 'Admin',
-        calendar_events=admin_calendar_events,
-        upcoming_event_count=len(admin_upcoming_events),
-    )
+    profile = _staff_profile(admin_user, _lang_text('Yönetici', 'Administrator'), 'admin_account', [
+        (User.query.filter_by(role='teacher').count(), _lang_text('Öğretmen', 'Teachers')),
+        (User.query.filter_by(role='student').count(), _lang_text('Öğrenci', 'Students')),
+        (Class.query.count(), _lang_text('Ders', 'Classes')),
+        (AttendanceSession.query.filter_by(active=True).count(), _lang_text('Aktif oturum', 'Active sessions')),
+    ])
+    _, upcoming, events = _serialize_user_calendar_events(admin_user.id)
+    return _render_home_dashboard(admin_user, 'admin', 'admin_dashboard', _lang_text('Yönetici Paneli', 'Admin Dashboard'),
+                                  profile, events, len(upcoming))
 
 
 @app.route('/admin/class-assignments')
@@ -2147,7 +2421,7 @@ def admin_class_assignments():
 
 
 @app.route('/admin/users')
-@role_required('admin')
+@role_required(('admin', 'registrar'))
 @permission_required()
 def admin_user_inventory():
     role_filter = (request.args.get('role') or '').strip().lower()
@@ -2157,7 +2431,7 @@ def admin_user_inventory():
     limit = max(1, min(limit, 1000))
 
     query = User.query
-    if role_filter in ('student', 'teacher', 'admin'):
+    if role_filter in ('student', 'teacher', 'assistant', 'registrar', 'admin'):
         query = query.filter(User.role == role_filter)
     if query_text:
         query = query.filter(
@@ -2170,7 +2444,12 @@ def admin_user_inventory():
     for user in users:
         teacher_class_count = len(user.teacher_classes) if user.role == 'teacher' else 0
         student_profile_exists = bool(user.students) if user.role == 'student' else False
+        advisor, advisor_source, advisor_group = user.students[0].advisor_info() if student_profile_exists else (None, None, None)
         user_rows.append({
+            'own_advisor_id': user.students[0].advisor_id if student_profile_exists else None,
+            'advisor_name': advisor.name if advisor else None,
+            'advisor_source': advisor_source,
+            'advisor_group': advisor_group,
             'id': user.id,
             'name': user.name,
             'email': user.email,
@@ -2197,8 +2476,11 @@ def admin_user_inventory():
         users=user_rows,
         filters=filters,
         summary=summary,
-        role_options=('student', 'teacher', 'admin'),
+        role_options=('student', 'teacher', 'assistant', 'registrar', 'admin'),
         current_admin_user_id=session.get('user_id'),
+        advisor_options=User.query.filter_by(role='teacher').order_by(User.name.asc()).all(),
+        # Student Affairs sees the list read-only and may reset student passwords only.
+        can_manage_accounts=session.get('role') == 'admin',
     )
 
 
@@ -2293,6 +2575,47 @@ def admin_update_user_role(user_id):
     return redirect(url_for('admin_user_inventory'))
 
 
+@app.route('/admin/users/<int:user_id>/advisor', methods=['POST'])
+@role_required('admin')
+@permission_required()
+@csrf_protect
+@rate_limit_protect('admin_mutation', 'ADMIN_MUTATION_RATE_LIMIT_MAX', 'ADMIN_MUTATION_RATE_LIMIT_WINDOW_SECONDS', _admin_mutation_rate_key)
+def admin_set_student_advisor(user_id):
+    target_user = db.session.get(User, user_id)
+    student = target_user.students[0] if target_user and target_user.role == 'student' and target_user.students else None
+    if not student:
+        flash(_t('advisor_student_not_found'), 'warning')
+        return redirect(url_for('admin_user_inventory'))
+
+    raw = _normalize_form_text(request.form.get('advisor_id'), max_length=20)
+    advisor = None
+    if raw:
+        advisor = db.session.get(User, int(raw)) if raw.isdigit() else None
+        if not advisor or advisor.role != 'teacher':
+            flash(_t('advisor_must_be_teacher'), 'danger')
+            return redirect(url_for('admin_user_inventory'))
+
+    old_value = str(student.advisor_id or '')
+    student.advisor_id = advisor.id if advisor else None
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        flash(_t('advisor_update_failed'), 'danger')
+        return redirect(url_for('admin_user_inventory'))
+
+    _log_admin_operation(
+        action='advisor_update',
+        target_user_id=target_user.id,
+        old_value=old_value,
+        new_value=str(student.advisor_id or ''),
+        status='updated',
+        detail='Advisor updated.',
+    )
+    flash(_t('advisor_updated'), 'success')
+    return redirect(url_for('admin_user_inventory'))
+
+
 @app.route('/admin/users/<int:user_id>/lock', methods=['POST'])
 @role_required('admin')
 @permission_required()
@@ -2377,7 +2700,7 @@ def admin_toggle_user_lock(user_id):
 
 
 @app.route('/admin/users/<int:user_id>/password', methods=['POST'])
-@role_required('admin')
+@role_required(('admin', 'registrar'))
 @permission_required()
 @csrf_protect
 @rate_limit_protect('admin_mutation', 'ADMIN_MUTATION_RATE_LIMIT_MAX', 'ADMIN_MUTATION_RATE_LIMIT_WINDOW_SECONDS', _admin_mutation_rate_key)
@@ -2390,6 +2713,12 @@ def admin_reset_user_password(user_id):
     actor_user_id = session.get('user_id')
     if actor_user_id == target_user.id:
         flash('Kendi şifrenizi bu panelden sıfırlayamazsınız.', 'danger')
+        return redirect(url_for('admin_user_inventory'))
+
+    if session.get('role') == 'registrar' and target_user.role != 'student':
+        _log_admin_operation('password_reset', target_user.id, None, None, status='denied', detail='registrar_non_student_target')
+        flash(_lang_text('Öğrenci İşleri yalnızca öğrenci hesaplarının şifresini sıfırlayabilir.',
+                         'Student Affairs can only reset passwords of student accounts.'), 'danger')
         return redirect(url_for('admin_user_inventory'))
 
     new_password = request.form.get('new_password') or ''
@@ -2711,157 +3040,216 @@ def admin_permission_matrix():
 
 
 @app.route('/admin/notifications', methods=['GET', 'POST'])
-@role_required('admin')
+@role_required(('admin', 'registrar'))
 @permission_required()
 @csrf_protect
 @rate_limit_protect('admin_mutation', 'ADMIN_MUTATION_RATE_LIMIT_MAX', 'ADMIN_MUTATION_RATE_LIMIT_WINDOW_SECONDS', _admin_mutation_rate_key)
 def admin_notifications():
+    """Compose announcements and/or e-mails; edit or delete an existing announcement (?edit=<id>)."""
     admin_user = db.session.get(User, session.get('user_id'))
-    target_role = _normalize_form_text(
-        request.form.get('target_role') if request.method == 'POST' else request.args.get('target_role'),
-        max_length=20,
-    ).lower()
-    if target_role not in {'all', 'student', 'teacher', 'admin'}:
-        target_role = 'all'
-
-    users_query = User.query
-    if target_role != 'all':
-        users_query = users_query.filter_by(role=target_role)
-    users = users_query.order_by(User.id.asc()).all()
-    invalid_emails = [u.email for u in users if not _is_valid_email((u.email or '').strip().lower())]
-
+    roles = tuple(ROLE_DASHBOARDS)
+    role_counts = {role: User.query.filter_by(role=role).count() for role in roles}
+    role_counts['all'] = sum(role_counts.values())
+    invalid_emails = [u.email for u in User.query.all() if not _is_valid_email((u.email or '').strip().lower())]
     stats = {
-        'selected_role': target_role,
-        'selected_user_count': len(users),
+        'role_counts': role_counts,
         'invalid_email_count': len(invalid_emails),
         'sample_invalid_emails': invalid_emails[:10],
         'dry_run': bool(app.config.get('EMAIL_DRY_RUN', True)),
     }
     courses = Course.query.order_by(Course.code.asc()).limit(500).all()
-    recent_announcements = Announcement.query.order_by(Announcement.created_at.desc()).limit(8).all()
+    groups = StudentGroup.query.order_by(StudentGroup.code.asc()).all()
 
-    if request.method == 'POST':
-        action = _normalize_form_text(request.form.get('action'), max_length=30).lower()
+    def _can_modify(announcement):
+        # Admins manage every announcement; Student Affairs only the ones they wrote.
+        return session.get('role') == 'admin' or announcement.author_id == session.get('user_id')
+
+    not_yours = _lang_text('Yalnızca kendi gönderdiğiniz duyuruları değiştirebilirsiniz.',
+                           'You can only change announcements you sent.')
+
+    edit_announcement = None
+    edit_id = request.args.get('edit', type=int)
+    if edit_id:
+        edit_announcement = db.session.get(Announcement, edit_id)
+        if not edit_announcement:
+            flash(_lang_text('Duyuru bulunamadı.', 'Announcement not found.'), 'warning')
+        elif not _can_modify(edit_announcement):
+            flash(not_yours, 'danger')
+            edit_announcement = None
+
+    def _render():
+        people = User.query.filter(User.id != session.get('user_id')).order_by(User.name.asc()).all()
+        return render_template('admin_notifications.html', stats=stats, courses=courses, groups=groups,
+                               people=people, edit_announcement=edit_announcement)
+
+    if request.method != 'POST':
+        return _render()
+
+    def _parse_dt_local(raw_value: str):
+        raw_value = (raw_value or '').strip()
+        if not raw_value:
+            return None
+        try:
+            return datetime.datetime.fromisoformat(raw_value)
+        except ValueError:
+            return None
+
+    def _announcement_payload():
+        target_role = _normalize_form_text(request.form.get('announcement_target_role'), max_length=20).lower()
+        if target_role not in ANNOUNCEMENT_TARGETS:
+            target_role = 'all'
+        course_id_raw = _normalize_form_text(request.form.get('announcement_course_id'), max_length=20)
+        course = db.session.get(Course, int(course_id_raw)) if course_id_raw.isdigit() else None
+        group_id_raw = _normalize_form_text(request.form.get('announcement_group_id'), max_length=20)
+        group = db.session.get(StudentGroup, int(group_id_raw)) if group_id_raw.isdigit() else None
+        return {
+            'group': group,
+            'title': _normalize_form_text(request.form.get('announcement_title'), max_length=150),
+            'body': _normalize_form_text(request.form.get('announcement_body'), max_length=2000),
+            'target_role': target_role,
+            'course': course,
+            'starts_at': _parse_dt_local(request.form.get('announcement_starts_at') or ''),
+            'ends_at': _parse_dt_local(request.form.get('announcement_ends_at') or ''),
+        }
+
+    def _payload_error(payload):
+        if not payload['title'] or not payload['body']:
+            return _lang_text('Duyuru başlığı ve içeriği zorunludur.', 'Announcement title and body are required.')
+        if payload['ends_at'] and payload['starts_at'] and payload['ends_at'] < payload['starts_at']:
+            return _lang_text('Bitiş zamanı başlangıç zamanından önce olamaz.', 'End time cannot be earlier than start time.')
+        return None
+
+    def _max_recipients():
+        raw = _normalize_form_text(request.form.get('max_recipients'), max_length=10)
+        return max(1, min(int(raw) if raw.isdigit() else 200, 2000))
+
+    def _email_recipients(target_role, course=None, group=None):
+        query = User.query
+        if target_role != 'all':
+            query = query.filter_by(role=target_role)
+        users = query.order_by(User.id.asc()).all()
+        if group is not None:
+            members = {student.id for student in group.students}
+            users = [u for u in users if u.id in members]
+        if course is not None:
+            enrolled = {e.student_id for e in course.enrollments if e.approved}
+            users = [u for u in users if u.id in enrolled or u.id == course.teacher_id]
+        return users
+
+    def _send_emails(users, subject, body):
+        sent = failed = invalid = 0
+        for user in users:
+            recipient = (user.email or '').strip().lower()
+            if not _is_valid_email(recipient):
+                invalid += 1
+                continue
+            ok, _ = _send_email_notification(recipient, subject, body)
+            if ok:
+                sent += 1
+            else:
+                failed += 1
+        flash(
+            _lang_text(
+                f'E-posta gönderimi tamamlandı. Gönderilen: {sent}, başarısız: {failed}, geçersiz adres: {invalid}, hedef: {len(users)}.',
+                f'Email delivery completed. Sent={sent}, Failed={failed}, Invalid Emails={invalid}, Targeted={len(users)}.',
+            ),
+            'success' if failed == 0 else 'warning',
+        )
+
+    def _publish(payload):
+        try:
+            announcement = Announcement(
+                title=payload['title'],
+                body=payload['body'],
+                author_id=admin_user.id if admin_user else session.get('user_id'),
+                target_role=payload['target_role'],
+                course_id=payload['course'].id if payload['course'] else None,
+                group_id=payload['group'].id if payload['group'] else None,
+                starts_at=payload['starts_at'],
+                ends_at=payload['ends_at'],
+            )
+            db.session.add(announcement)
+            db.session.commit()
+            flash(_lang_text(f'Duyuru yayınlandı: {payload["title"]}', f'Announcement published: {payload["title"]}'), 'success')
+            return announcement
+        except Exception:
+            db.session.rollback()
+            flash(_lang_text('Duyuru yayınlanırken hata oluştu.', 'Failed to publish announcement.'), 'danger')
+            return None
+
+    def _back_to_inbox(announcement_id=None):
+        return redirect(url_for('announcements_inbox', box='sent', id=f'a{announcement_id}') if announcement_id
+                        else url_for('announcements_inbox', box='sent'))
+
+    action = _normalize_form_text(request.form.get('action'), max_length=30).lower()
+    return_to_inbox = request.form.get('return_to') == 'inbox'
+
+    if action == 'compose' and request.form.get('announcement_target_role') == 'person':
+        # Personal message to one user: in-app message, e-mail, or both.
+        channel = _normalize_form_text(request.form.get('channel'), max_length=20).lower()
+        if channel not in {'announcement', 'both', 'email'}:
+            channel = 'announcement'
+        recipient = _resolve_recipient(request.form.get('recipient'))
+        title = _normalize_form_text(request.form.get('announcement_title'), max_length=150)
+        body = _normalize_form_text(request.form.get('announcement_body'), max_length=2000)
+        if recipient is None:
+            flash(_lang_text('Kişi bulunamadı. Listeden bir kişi seçin.', 'Person not found. Pick someone from the list.'), 'warning')
+            return _render()
+        if not title or not body:
+            flash(_lang_text('Konu ve içerik zorunludur.', 'Subject and message are required.'), 'warning')
+            return _render()
+        message = None
+        if channel in {'announcement', 'both'}:
+            message = Message(sender_id=session.get('user_id'), recipient_id=recipient.id, subject=title, body=body)
+            db.session.add(message)
+            db.session.commit()
+            flash(_lang_text(f'Mesaj gönderildi: {recipient.name}', f'Message sent to {recipient.name}'), 'success')
+        if channel in {'email', 'both'}:
+            _send_emails([recipient], title, body)
+        if message is not None:
+            return redirect(url_for('announcements_inbox', box='sent', id=f'm{message.id}'))
+        return _render()
+
+    if action in {'compose', 'publish_announcement'}:
+        channel = _normalize_form_text(request.form.get('channel'), max_length=20).lower() if action == 'compose' else 'announcement'
+        if channel not in {'announcement', 'both', 'email'}:
+            channel = 'announcement'
+        payload = _announcement_payload()
+        error = _payload_error(payload)
+        if error:
+            flash(error, 'warning')
+            return _render()
+        announcement = _publish(payload) if channel in {'announcement', 'both'} else None
+        if channel in {'email', 'both'}:
+            recipients = _email_recipients(payload['target_role'], payload['course'], payload['group'])[:_max_recipients()]
+            _send_emails(recipients, payload['title'], payload['body'])
+        if action == 'compose' and announcement is not None:
+            return _back_to_inbox(announcement.id)
+        return _render()
+
+    if action == 'send_broadcast':
+        target_role = _normalize_form_text(request.form.get('target_role'), max_length=20).lower()
+        if target_role not in ANNOUNCEMENT_TARGETS:
+            target_role = 'all'
         subject = _normalize_form_text(request.form.get('subject'), max_length=150)
         body = _normalize_form_text(request.form.get('body'), max_length=2000)
-        test_email = _normalize_form_text(request.form.get('test_email'), max_length=254).lower()
-        limit_raw = _normalize_form_text(request.form.get('max_recipients'), max_length=10)
-        max_recipients = int(limit_raw) if limit_raw.isdigit() else 200
-        max_recipients = max(1, min(max_recipients, 2000))
+        if not subject or not body:
+            flash(_lang_text('Toplu gönderim için konu ve içerik zorunludur.', 'Subject and body are required for a broadcast.'), 'warning')
+            return _render()
+        _send_emails(_email_recipients(target_role)[:_max_recipients()], subject, body)
+        return _render()
 
-        def _render_admin_notifications():
-            return render_template(
-                'admin_notifications.html',
-                stats=stats,
-                recent_announcements=recent_announcements,
-                courses=courses,
-            )
-
-        def _parse_dt_local(raw_value: str):
-            raw_value = (raw_value or '').strip()
-            if not raw_value:
-                return None
-            try:
-                return datetime.datetime.fromisoformat(raw_value)
-            except ValueError:
-                return None
-
-        def _normalize_announcement_payload():
-            announcement_title = _normalize_form_text(request.form.get('announcement_title'), max_length=150)
-            announcement_body = _normalize_form_text(request.form.get('announcement_body'), max_length=2000)
-            announcement_target_role = _normalize_form_text(request.form.get('announcement_target_role'), max_length=20).lower()
-            announcement_course_id_raw = _normalize_form_text(request.form.get('announcement_course_id'), max_length=20)
-            announcement_starts_at = _parse_dt_local(request.form.get('announcement_starts_at') or '')
-            announcement_ends_at = _parse_dt_local(request.form.get('announcement_ends_at') or '')
-            announcement_course = None
-            if announcement_target_role not in {'all', 'student', 'teacher', 'admin'}:
-                announcement_target_role = 'all'
-            if announcement_course_id_raw and announcement_course_id_raw.isdigit():
-                announcement_course = db.session.get(Course, int(announcement_course_id_raw))
-            return {
-                'title': announcement_title,
-                'body': announcement_body,
-                'target_role': announcement_target_role,
-                'course': announcement_course,
-                'starts_at': announcement_starts_at,
-                'ends_at': announcement_ends_at,
-            }
-
-        if action == 'publish_announcement':
-            payload = _normalize_announcement_payload()
-
-            if not payload['title'] or not payload['body']:
-                flash(_lang_text('Duyuru başlığı ve içeriği zorunludur.', 'Announcement title and body are required.'), 'warning')
-                return _render_admin_notifications()
-            if payload['ends_at'] and payload['starts_at'] and payload['ends_at'] < payload['starts_at']:
-                flash(_lang_text('Bitiş zamanı başlangıç zamanından önce olamaz.', 'End time cannot be earlier than start time.'), 'warning')
-                return _render_admin_notifications()
-
-            try:
-                db.session.add(Announcement(
-                    title=payload['title'],
-                    body=payload['body'],
-                    author_id=admin_user.id if admin_user else session.get('user_id'),
-                    target_role=payload['target_role'],
-                    course_id=payload['course'].id if payload['course'] else None,
-                    starts_at=payload['starts_at'],
-                    ends_at=payload['ends_at'],
-                ))
-                db.session.commit()
-                flash(_lang_text('Duyuru başarıyla yayınlandı.', 'Announcement published successfully.'), 'success')
-            except Exception:
-                db.session.rollback()
-                flash(_lang_text('Duyuru yayınlanırken hata oluştu.', 'Failed to publish announcement.'), 'danger')
-
-            recent_announcements = Announcement.query.order_by(Announcement.created_at.desc()).limit(8).all()
-            return _render_admin_notifications()
-
-        if action == 'update_announcement':
-            announcement_id_raw = _normalize_form_text(request.form.get('announcement_id'), max_length=20)
-            if not announcement_id_raw.isdigit():
-                flash(_lang_text('Geçersiz duyuru kaydı.', 'Invalid announcement record.'), 'warning')
-                return _render_admin_notifications()
-
-            announcement = db.session.get(Announcement, int(announcement_id_raw))
-            if not announcement:
-                flash(_lang_text('Duyuru bulunamadı.', 'Announcement not found.'), 'warning')
-                return _render_admin_notifications()
-
-            payload = _normalize_announcement_payload()
-            if not payload['title'] or not payload['body']:
-                flash(_lang_text('Duyuru başlığı ve içeriği zorunludur.', 'Announcement title and body are required.'), 'warning')
-                return _render_admin_notifications()
-            if payload['ends_at'] and payload['starts_at'] and payload['ends_at'] < payload['starts_at']:
-                flash(_lang_text('Bitiş zamanı başlangıç zamanından önce olamaz.', 'End time cannot be earlier than start time.'), 'warning')
-                return _render_admin_notifications()
-
-            try:
-                announcement.title = payload['title']
-                announcement.body = payload['body']
-                announcement.target_role = payload['target_role']
-                announcement.course_id = payload['course'].id if payload['course'] else None
-                announcement.starts_at = payload['starts_at']
-                announcement.ends_at = payload['ends_at']
-                db.session.commit()
-                flash(_lang_text('Duyuru güncellendi.', 'Announcement updated.'), 'success')
-            except Exception:
-                db.session.rollback()
-                flash(_lang_text('Duyuru güncellenirken hata oluştu.', 'Failed to update announcement.'), 'danger')
-
-            recent_announcements = Announcement.query.order_by(Announcement.created_at.desc()).limit(8).all()
-            return _render_admin_notifications()
+    if action in {'update_announcement', 'delete_announcement'}:
+        announcement_id_raw = _normalize_form_text(request.form.get('announcement_id'), max_length=20)
+        announcement = db.session.get(Announcement, int(announcement_id_raw)) if announcement_id_raw.isdigit() else None
+        if not announcement:
+            flash(_lang_text('Duyuru bulunamadı.', 'Announcement not found.'), 'warning')
+            return _back_to_inbox() if return_to_inbox else _render()
+        if not _can_modify(announcement):
+            flash(not_yours, 'danger')
+            return _back_to_inbox() if return_to_inbox else _render()
 
         if action == 'delete_announcement':
-            announcement_id_raw = _normalize_form_text(request.form.get('announcement_id'), max_length=20)
-            if not announcement_id_raw.isdigit():
-                flash(_lang_text('Geçersiz duyuru kaydı.', 'Invalid announcement record.'), 'warning')
-                return _render_admin_notifications()
-
-            announcement = db.session.get(Announcement, int(announcement_id_raw))
-            if not announcement:
-                flash(_lang_text('Duyuru bulunamadı.', 'Announcement not found.'), 'warning')
-                return _render_admin_notifications()
-
             try:
                 db.session.delete(announcement)
                 db.session.commit()
@@ -2869,61 +3257,268 @@ def admin_notifications():
             except Exception:
                 db.session.rollback()
                 flash(_lang_text('Duyuru silinirken hata oluştu.', 'Failed to delete announcement.'), 'danger')
+            return _back_to_inbox() if return_to_inbox else _render()
 
-            recent_announcements = Announcement.query.order_by(Announcement.created_at.desc()).limit(8).all()
-            return _render_admin_notifications()
+        payload = _announcement_payload()
+        error = _payload_error(payload)
+        if error:
+            flash(error, 'warning')
+            edit_announcement = announcement
+            return _render()
+        try:
+            announcement.title = payload['title']
+            announcement.body = payload['body']
+            announcement.target_role = payload['target_role']
+            announcement.course_id = payload['course'].id if payload['course'] else None
+            announcement.group_id = payload['group'].id if payload['group'] else None
+            announcement.starts_at = payload['starts_at']
+            announcement.ends_at = payload['ends_at']
+            db.session.commit()
+            flash(_lang_text(f'Duyuru güncellendi: {payload["title"]}', f'Announcement updated: {payload["title"]}'), 'success')
+        except Exception:
+            db.session.rollback()
+            flash(_lang_text('Duyuru güncellenirken hata oluştu.', 'Failed to update announcement.'), 'danger')
+        return _back_to_inbox(announcement.id) if return_to_inbox else _render()
 
-        if action == 'send_test':
-            if not _is_valid_email(test_email):
-                flash('Lütfen geçerli bir test e-posta adresi girin.', 'danger')
-                return _render_admin_notifications()
-            if not subject or not body:
-                flash('Test e-postası için konu ve içerik zorunludur.', 'warning')
-                return _render_admin_notifications()
+    flash(_lang_text('Geçersiz duyuru işlemi.', 'Invalid announcement action.'), 'warning')
+    return _render()
 
-            ok, reason = _send_email_notification(test_email, subject, body)
-            if ok:
-                flash('Test e-postası başarıyla gönderildi.' if reason != 'dry_run' else 'Test e-postası kuru çalıştırma modunda doğrulandı.', 'success')
+
+GROUP_IMPORT_MAX_BYTES = 2 * 1024 * 1024
+GROUP_IMPORT_MAX_ROWS = 5000
+GROUP_IMPORT_HEADERS = {
+    'öğrenci no', 'ogrenci no', 'öğrenci numarası', 'ogrenci numarasi', 'numara', 'no', 'student number',
+    'student_number', 'student no', 'e-posta', 'eposta', 'email', 'e-mail', 'mail',
+}
+
+
+def _read_group_import_values(file_storage):
+    """Return (values, error) from an uploaded .xlsx/.csv: one student number or e-mail per row.
+
+    Uses the column whose header looks like a student number / e-mail; without a header row,
+    the first non-empty cell of each row.
+    """
+    filename = (file_storage.filename or '').lower()
+    data = file_storage.read(GROUP_IMPORT_MAX_BYTES + 1)
+    if not data:
+        return [], _lang_text('Dosya boş.', 'The file is empty.')
+    if len(data) > GROUP_IMPORT_MAX_BYTES:
+        return [], _lang_text('Dosya 2 MB sınırını aşıyor.', 'The file exceeds the 2 MB limit.')
+
+    rows = []
+    if filename.endswith(('.xlsx', '.xlsm')):
+        try:
+            from openpyxl import load_workbook
+            workbook = load_workbook(BytesIO(data), read_only=True, data_only=True)
+            for row in workbook.active.iter_rows(values_only=True):
+                rows.append(row)
+                if len(rows) > GROUP_IMPORT_MAX_ROWS:
+                    break
+            workbook.close()
+        except Exception:
+            return [], _lang_text('Excel dosyası okunamadı.', 'Could not read the Excel file.')
+    elif filename.endswith(('.csv', '.txt')):
+        try:
+            text_data = data.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            text_data = data.decode('cp1254', errors='replace')
+        delimiter = ';' if text_data.count(';') > text_data.count(',') else ','
+        rows = list(csv.reader(StringIO(text_data), delimiter=delimiter))[:GROUP_IMPORT_MAX_ROWS + 1]
+    else:
+        return [], _lang_text('Yalnızca .xlsx veya .csv dosyası yükleyin.', 'Upload an .xlsx or .csv file.')
+
+    def _cell(value):
+        if value is None:
+            return ''
+        if isinstance(value, float) and value.is_integer():
+            value = int(value)
+        return str(value).strip()
+
+    rows = [[_cell(c) for c in row] for row in rows if row and any(_cell(c) for c in row)]
+    if not rows:
+        return [], _lang_text('Dosyada veri bulunamadı.', 'No data found in the file.')
+
+    header = [c.lower() for c in rows[0]]
+    columns = [i for i, name in enumerate(header) if name in GROUP_IMPORT_HEADERS]
+    if columns:
+        values = [next((row[i] for i in columns if i < len(row) and row[i]), '') for row in rows[1:]]
+    else:
+        values = [next((c for c in row if c), '') for row in rows]
+    return [v for v in values if v][:GROUP_IMPORT_MAX_ROWS], None
+
+
+def _find_students_by_identifiers(values):
+    """Map student numbers or e-mails to Student rows. Returns (found_students, not_found_values)."""
+    numbers = {v.upper() for v in values if '@' not in v}
+    emails = {v.lower() for v in values if '@' in v}
+    by_number = {}
+    if numbers:
+        for student in Student.query.filter(func.upper(Student.student_number).in_(numbers)).all():
+            by_number[(student.student_number or '').upper()] = student
+    by_email = {}
+    if emails:
+        rows = db.session.query(Student, User).join(User, User.id == Student.id).filter(func.lower(User.email).in_(emails)).all()
+        by_email = {user.email.lower(): student for student, user in rows}
+    found, not_found, seen = [], [], set()
+    for value in values:
+        student = by_email.get(value.lower()) if '@' in value else by_number.get(value.upper())
+        if student is None:
+            not_found.append(value)
+        elif student.id not in seen:
+            seen.add(student.id)
+            found.append(student)
+    return found, not_found
+
+
+@app.route('/admin/groups', methods=['GET', 'POST'])
+@role_required(('admin', 'registrar'))
+@permission_required()
+@csrf_protect
+@rate_limit_protect('admin_mutation', 'ADMIN_MUTATION_RATE_LIMIT_MAX', 'ADMIN_MUTATION_RATE_LIMIT_WINDOW_SECONDS', _admin_mutation_rate_key)
+def admin_groups():
+    """Department groups (CMP, SWE, ...): create, rename, delete, manage members, import from Excel/CSV."""
+    actor_id = session.get('user_id')
+
+    def _group_from_form():
+        raw = _normalize_form_text(request.form.get('group_id'), max_length=20)
+        return db.session.get(StudentGroup, int(raw)) if raw.isdigit() else None
+
+    def _clean_code(raw):
+        return re.sub(r'[^A-Z0-9_-]', '', (raw or '').strip().upper().replace('İ', 'I'))[:20]
+
+    if request.method == 'POST':
+        action = _normalize_form_text(request.form.get('action'), max_length=30).lower()
+
+        if action == 'create_group':
+            code = _clean_code(request.form.get('code'))
+            name = _normalize_form_text(request.form.get('name'), max_length=120)
+            if not code or not name:
+                flash(_lang_text('Grup kodu ve adı zorunludur.', 'Group code and name are required.'), 'warning')
+                return redirect(url_for('admin_groups'))
+            if StudentGroup.query.filter_by(code=code).first():
+                flash(_lang_text(f'{code} kodlu bir grup zaten var.', f'A group with code {code} already exists.'), 'warning')
+                return redirect(url_for('admin_groups'))
+            group = StudentGroup(code=code, name=name)
+            db.session.add(group)
+            db.session.commit()
+            _log_admin_operation('group_create', actor_id, None, code)
+            flash(_lang_text(f'{code} grubu oluşturuldu.', f'Group {code} created.'), 'success')
+            return redirect(url_for('admin_groups', id=group.id))
+
+        group = _group_from_form()
+        if group is None:
+            flash(_lang_text('Grup bulunamadı.', 'Group not found.'), 'warning')
+            return redirect(url_for('admin_groups'))
+
+        if action == 'update_group':
+            code = _clean_code(request.form.get('code'))
+            name = _normalize_form_text(request.form.get('name'), max_length=120)
+            if not code or not name:
+                flash(_lang_text('Grup kodu ve adı zorunludur.', 'Group code and name are required.'), 'warning')
+            elif StudentGroup.query.filter(StudentGroup.code == code, StudentGroup.id != group.id).first():
+                flash(_lang_text(f'{code} kodlu bir grup zaten var.', f'A group with code {code} already exists.'), 'warning')
             else:
-                flash(f'Test email failed: {reason}', 'danger')
-            return _render_admin_notifications()
+                old_code = group.code
+                group.code, group.name = code, name
+                db.session.commit()
+                _log_admin_operation('group_update', actor_id, old_code, code)
+                flash(_lang_text('Grup güncellendi.', 'Group updated.'), 'success')
+            return redirect(url_for('admin_groups', id=group.id))
 
-        if action != 'send_broadcast':
-            flash('Geçersiz bildirim işlemi.', 'warning')
-            return _render_admin_notifications()
+        if action == 'set_advisor':
+            raw = _normalize_form_text(request.form.get('advisor_id'), max_length=20)
+            advisor = db.session.get(User, int(raw)) if raw.isdigit() else None
+            if raw and (advisor is None or advisor.role != 'teacher'):
+                flash(_t('advisor_must_be_teacher'), 'danger')
+                return redirect(url_for('admin_groups', id=group.id))
+            old_value = str(group.advisor_id or '')
+            group.advisor_id = advisor.id if advisor else None
+            db.session.commit()
+            _log_admin_operation('group_advisor_update', actor_id, old_value, str(group.advisor_id or ''), detail=group.code)
+            flash(_t('advisor_updated'), 'success')
+            return redirect(url_for('admin_groups', id=group.id))
 
-        if not subject or not body:
-            flash('Toplu gönderim için konu ve içerik zorunludur.', 'warning')
-            return _render_admin_notifications()
+        if action == 'delete_group':
+            code = group.code
+            Announcement.query.filter_by(group_id=group.id).update({'group_id': None})
+            group.students = []
+            db.session.delete(group)
+            db.session.commit()
+            _log_admin_operation('group_delete', actor_id, code, None)
+            flash(_lang_text(f'{code} grubu silindi. Bu gruba gönderilmiş duyurular genel duyuruya dönüştü.',
+                             f'Group {code} deleted. Its announcements are now general announcements.'), 'success')
+            return redirect(url_for('admin_groups'))
 
-        recipients = users[:max_recipients]
-        sent_count = 0
-        failed_count = 0
-        invalid_count = 0
-
-        for user in recipients:
-            recipient = (user.email or '').strip().lower()
-            if not _is_valid_email(recipient):
-                invalid_count += 1
-                continue
-            ok, _ = _send_email_notification(recipient, subject, body)
-            if ok:
-                sent_count += 1
+        if action == 'add_member':
+            raw = _normalize_form_text(request.form.get('student'), max_length=200)
+            identifier = raw.split()[0] if raw else ''
+            found, _ = _find_students_by_identifiers([identifier]) if identifier else ([], [])
+            if not found:
+                flash(_lang_text('Öğrenci bulunamadı. Öğrenci numarası veya e-posta girin.',
+                                 'Student not found. Enter a student number or e-mail.'), 'warning')
+            elif found[0] in group.students:
+                flash(_lang_text('Öğrenci zaten bu grupta.', 'The student is already in this group.'), 'info')
             else:
-                failed_count += 1
+                group.students.append(found[0])
+                db.session.commit()
+                _log_admin_operation('group_member_add', found[0].id, None, group.code)
+                flash(_lang_text('Öğrenci gruba eklendi.', 'Student added to the group.'), 'success')
+            return redirect(url_for('admin_groups', id=group.id))
 
-        flash(
-            f'Notification completed. Sent={sent_count}, Failed={failed_count}, Invalid Emails={invalid_count}, Targeted={len(recipients)}.',
-            'success' if failed_count == 0 else 'warning',
-        )
+        if action == 'remove_member':
+            raw = _normalize_form_text(request.form.get('student_id'), max_length=20)
+            student = db.session.get(Student, int(raw)) if raw.isdigit() else None
+            if student is not None and student in group.students:
+                group.students.remove(student)
+                db.session.commit()
+                _log_admin_operation('group_member_remove', student.id, group.code, None)
+                flash(_lang_text('Öğrenci gruptan çıkarıldı.', 'Student removed from the group.'), 'success')
+            return redirect(url_for('admin_groups', id=group.id))
 
-    return render_template('admin_notifications.html', stats=stats, recent_announcements=recent_announcements, courses=courses)
+        if action == 'import_members':
+            upload = request.files.get('file')
+            if upload is None or not upload.filename:
+                flash(_lang_text('Bir dosya seçin.', 'Choose a file.'), 'warning')
+                return redirect(url_for('admin_groups', id=group.id))
+            values, error = _read_group_import_values(upload)
+            if error:
+                flash(error, 'warning')
+                return redirect(url_for('admin_groups', id=group.id))
+            found, not_found = _find_students_by_identifiers(values)
+            existing = {s.id for s in group.students}
+            added = [s for s in found if s.id not in existing]
+            group.students.extend(added)
+            db.session.commit()
+            _log_admin_operation('group_import', actor_id, None, group.code,
+                                 detail=f'added={len(added)} existing={len(found) - len(added)} not_found={len(not_found)}')
+            message = _lang_text(
+                f'İçe aktarma tamamlandı: {len(added)} öğrenci eklendi, {len(found) - len(added)} zaten üyeydi, {len(not_found)} kayıt bulunamadı.',
+                f'Import finished: {len(added)} added, {len(found) - len(added)} already members, {len(not_found)} not found.',
+            )
+            if not_found:
+                message += ' ' + _lang_text('Bulunamayanlar', 'Not found') + ': ' + ', '.join(not_found[:15]) + ('…' if len(not_found) > 15 else '')
+            flash(message, 'success' if not not_found else 'warning')
+            return redirect(url_for('admin_groups', id=group.id))
+
+        flash(_lang_text('Geçersiz grup işlemi.', 'Invalid group action.'), 'warning')
+        return redirect(url_for('admin_groups', id=group.id))
+
+    groups = StudentGroup.query.order_by(StudentGroup.code.asc()).all()
+    selected_id = request.args.get('id', type=int)
+    selected = next((g for g in groups if g.id == selected_id), None) or (groups[0] if groups else None)
+    members, candidates = [], []
+    if selected is not None:
+        member_ids = {s.id for s in selected.students}
+        members = sorted(selected.students, key=lambda s: (s.student_number or ''))
+        candidates = [s for s in Student.query.order_by(Student.student_number.asc()).all() if s.id not in member_ids]
+    teachers = User.query.filter_by(role='teacher').order_by(User.name.asc()).all()
+    return render_template('admin_groups.html', groups=groups, selected=selected, members=members, candidates=candidates, advisor_options=teachers)
 
 # ------------------ TEACHER DASHBOARD ------------------
 def _build_teacher_dashboard_context(user: User):
     _auto_finalize_expired_sessions()
 
-    teacher_classes = Class.query.filter_by(teacher_id=user.id).all()
+    teacher_classes = _accessible_classes(user)
 
     class_ids = [cls.id for cls in teacher_classes]
     active_session_by_class = {}
@@ -3012,211 +3607,34 @@ def teacher_dashboard():
     if request.method == 'POST':
         return _handle_user_calendar_dashboard_post(user, PERMISSIONS['TEACHER_DASHBOARD_CALENDAR_UPDATE'], 'teacher_dashboard')
 
-    teacher_classes, dashboard_summary = _build_teacher_dashboard_context(user)
-
-    weather_city = (request.args.get('city') or session.get('teacher_weather_city') or 'Lefkosa').strip()
-    lat_arg = (request.args.get('lat') or '').strip()
-    lon_arg = (request.args.get('lon') or '').strip()
-    weather_lat = session.get('teacher_weather_lat')
-    weather_lon = session.get('teacher_weather_lon')
-
-    if lat_arg and lon_arg:
-        try:
-            parsed_lat = float(lat_arg)
-            parsed_lon = float(lon_arg)
-            if -90 <= parsed_lat <= 90 and -180 <= parsed_lon <= 180:
-                weather_lat = parsed_lat
-                weather_lon = parsed_lon
-                session['teacher_weather_lat'] = parsed_lat
-                session['teacher_weather_lon'] = parsed_lon
-        except ValueError:
-            pass
-
-    if request.args.get('city'):
-        session['teacher_weather_city'] = weather_city
-        weather_lat = None
-        weather_lon = None
-
-    if weather_lat is not None and weather_lon is not None:
-        weather = _fetch_weather(lat=float(weather_lat), lon=float(weather_lon))
-    else:
-        weather = _fetch_weather(city=weather_city)
-
-    teacher_announcements = []
-    try:
-        now = datetime.datetime.now()
-        teacher_course_ids = [course.id for course in user.courses_taught]
-        teacher_announcements_query = Announcement.query.filter(
-            ((Announcement.target_role.is_(None)) | (Announcement.target_role == 'all') | (Announcement.target_role == 'teacher')),
-            ((Announcement.starts_at.is_(None)) | (Announcement.starts_at <= now)),
-            ((Announcement.ends_at.is_(None)) | (Announcement.ends_at >= now)),
-        )
-        if teacher_course_ids:
-            teacher_announcements_query = teacher_announcements_query.filter(
-                (Announcement.course_id.is_(None)) | (Announcement.course_id.in_(teacher_course_ids))
-            )
-        else:
-            teacher_announcements_query = teacher_announcements_query.filter(Announcement.course_id.is_(None))
-        teacher_announcements = teacher_announcements_query.order_by(Announcement.created_at.desc()).limit(6).all()
-    except Exception:
-        db.session.rollback()
-        teacher_announcements = []
-
-    lookup_student_number = _normalize_form_text(request.args.get('student_number'), max_length=20)
-    student_lookup_error = None
-    student_dashboard_preview = None
-    if lookup_student_number:
-        teacher_student_ids = {student.id for cls in teacher_classes for student in cls.students}
-        taught_course_ids = [course.id for course in user.courses_taught]
-        if taught_course_ids:
-            enrolled_student_rows = db.session.query(CourseEnrollment.student_id).filter(
-                CourseEnrollment.course_id.in_(taught_course_ids)
-            ).all()
-            teacher_student_ids.update(student_id for student_id, in enrolled_student_rows)
-        looked_up_student = None
-        if teacher_student_ids:
-            looked_up_student = Student.query.filter(
-                Student.id.in_(teacher_student_ids),
-                Student.student_number == lookup_student_number,
-            ).first()
-
-        if looked_up_student:
-            try:
-                now = datetime.datetime.now()
-                looked_up_user = db.session.get(User, looked_up_student.id)
-                taught_course_ids = [course.id for course in user.courses_taught]
-                student_course_ids = [enrollment.course_id for enrollment in looked_up_student.course_enrollments]
-                student_announcements_query = Announcement.query.filter(
-                    ((Announcement.target_role.is_(None)) | (Announcement.target_role == 'all') | (Announcement.target_role == 'student')),
-                    ((Announcement.starts_at.is_(None)) | (Announcement.starts_at <= now)),
-                    ((Announcement.ends_at.is_(None)) | (Announcement.ends_at >= now)),
-                )
-                if student_course_ids:
-                    student_announcements_query = student_announcements_query.filter(
-                        (Announcement.course_id.is_(None)) | (Announcement.course_id.in_(student_course_ids))
-                    )
-                else:
-                    student_announcements_query = student_announcements_query.filter(Announcement.course_id.is_(None))
-                student_announcements = student_announcements_query.order_by(Announcement.created_at.desc()).limit(6).all()
-
-                today = datetime.date.today()
-                student_calendar_events = StudentCalendarEvent.query.filter_by(
-                    student_id=looked_up_student.id
-                ).order_by(StudentCalendarEvent.event_date.asc()).all()
-                student_upcoming_events = [event for event in student_calendar_events if event.event_date >= today][:12]
-
-                teacher_enrollments = (
-                    CourseEnrollment.query
-                    .join(Course, CourseEnrollment.course_id == Course.id)
-                    .filter(
-                        CourseEnrollment.student_id == looked_up_student.id,
-                        Course.teacher_id == user.id,
-                    )
-                    .order_by(Course.code.asc())
-                    .all()
-                )
-
-                enrollment_attendance_items = []
-                for enrollment in teacher_enrollments:
-                    course = enrollment.course
-                    if not course:
-                        continue
-
-                    confirmed_session_total = 0
-                    present_count = 0
-                    absence_count = 0
-                    attendance_pct = 0.0
-                    attendance_status = 'no_data'
-
-                    linked_class_id = None
-                    code_value = (course.code or '').strip().upper()
-                    if code_value.startswith('CLS') and code_value[3:].isdigit():
-                        linked_class_id = int(code_value[3:])
-
-                    if linked_class_id is not None:
-                        linked_class = db.session.get(Class, linked_class_id)
-                        if linked_class and linked_class.teacher_id == user.id:
-                            confirmed_session_total = AttendanceSession.query.filter_by(
-                                class_id=linked_class.id,
-                                confirmed=True,
-                            ).count()
-                            if confirmed_session_total > 0:
-                                present_count = (
-                                    AttendanceRecord.query
-                                    .join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id)
-                                    .filter(
-                                        AttendanceSession.class_id == linked_class.id,
-                                        AttendanceSession.confirmed.is_(True),
-                                        AttendanceRecord.student_id == looked_up_student.id,
-                                        AttendanceRecord.present.is_(True),
-                                    )
-                                    .count()
-                                )
-                                absence_count = max(confirmed_session_total - present_count, 0)
-                                attendance_pct = round((present_count / confirmed_session_total) * 100.0, 2)
-                                attendance_status = 'pass' if (present_count / confirmed_session_total) >= 0.7 else 'fail'
-
-                    grade_status = 'pending'
-                    if enrollment.grades:
-                        avg_grade_point = sum(grade.grade_point for grade in enrollment.grades) / len(enrollment.grades)
-                        grade_status = 'pass' if avg_grade_point >= 1.0 else 'fail'
-
-                    enrollment_attendance_items.append(
-                        {
-                            'course_code': course.code,
-                            'course_title': course.title,
-                            'confirmed_session_total': confirmed_session_total,
-                            'present_count': present_count,
-                            'absence_count': absence_count,
-                            'attendance_pct': attendance_pct,
-                            'attendance_status': attendance_status,
-                            'grade_status': grade_status,
-                        }
-                    )
-
-                student_dashboard_preview = {
-                    'student_id': looked_up_student.id,
-                    'student_number': looked_up_student.student_number,
-                    'name': looked_up_user.name if looked_up_user else f'{looked_up_student.first_name or ""} {looked_up_student.last_name or ""}'.strip() or '-',
-                    'department': (looked_up_student.university_department or '').strip() or _lang_text('Henuz tanimli degil', 'Not set yet'),
-                    'class_level': (looked_up_student.university_term or '').strip() or _lang_text('Henuz tanimli degil', 'Not set yet'),
-                    'contact': {
-                        'email': looked_up_user.email if looked_up_user else '-',
-                        'phone': None,
-                        'address': None,
-                        'contact_preference': 'email',
-                    },
-                    'courses': enrollment_attendance_items,
-                }
-            except Exception:
-                db.session.rollback()
-                student_lookup_error = _lang_text('Ogrenci bilgileri yuklenemedi.', 'Student data could not be loaded.')
-        else:
-            student_lookup_error = _lang_text(
-                'Bu ogrenci numarasi sizin derslerinizde bulunamadi.',
-                'This student number was not found in your classes.',
-            )
-
-    _, teacher_upcoming_events, teacher_calendar_events = _serialize_user_calendar_events(user.id)
-
-    return render_template(
-        'teacher_dashboard.html',
-        teacher_classes=teacher_classes,
-        user_name=user.name,
-        dashboard_summary=dashboard_summary,
-        weather=weather,
-        weather_using_location=bool(weather and weather.get('source') == 'location'),
-        teacher_announcements=teacher_announcements,
-        calendar_events=teacher_calendar_events,
-        upcoming_event_count=len(teacher_upcoming_events),
-        lookup_student_number=lookup_student_number,
-        student_dashboard_preview=student_dashboard_preview,
-        student_lookup_error=student_lookup_error,
-    )
+    teacher_classes, _ = _build_teacher_dashboard_context(user)
+    tp = _teacher_profile_summary(user, teacher_classes)
+    profile = {
+        'name': tp['name'],
+        'title': tp['title'],
+        'initials': tp['initials'],
+        'photo_url': url_for('teacher_photo', user_id=user.id) if tp['has_photo'] else None,
+        'facts': [
+            (_lang_text('E-posta', 'E-mail'), tp['email']),
+            (_lang_text('Fakülte', 'Faculty'), tp['faculty']),
+            (_lang_text('Bölüm', 'Department'), tp['department']),
+            (_lang_text('Ofis', 'Office'), tp['office']),
+            (_lang_text('Ofis saatleri', 'Office hours'), tp['office_hours']),
+        ],
+        'stats': [
+            (tp['class_count'], _lang_text('Ders', 'Classes')),
+            (tp['student_count'], _lang_text('Öğrenci', 'Students')),
+            (tp['advisee_count'], _lang_text('Danışan', 'Advisees')),
+            (tp['assistant_count'], _lang_text('Asistan', 'Assistants')),
+        ],
+        'edit_url': url_for('teacher_account'),
+    }
+    _, upcoming, events = _serialize_user_calendar_events(user.id)
+    return _render_home_dashboard(user, 'teacher', 'teacher_dashboard', _t('teacher_dashboard'), profile, events, len(upcoming))
 
 
 @app.route('/teacher/attendance-hub', methods=['GET'])
-@role_required('teacher')
+@role_required(('teacher', 'assistant'))
 @permission_required()
 def teacher_attendance_hub():
     user = db.session.get(User, session.get('user_id'))
@@ -3226,17 +3644,20 @@ def teacher_attendance_hub():
         return redirect(url_for('login'))
 
     teacher_classes, dashboard_summary = _build_teacher_dashboard_context(user)
+    assistant_options = (User.query.filter_by(role='assistant', is_locked=False).order_by(User.name.asc()).all()
+                         if session.get('role') == 'teacher' else [])
 
     return render_template(
         'teacher_attendance_hub.html',
         teacher_classes=teacher_classes,
         user_name=user.name,
         dashboard_summary=dashboard_summary,
+        assistant_options=assistant_options,
     )
 
 
 @app.route('/teacher/grade-entry', methods=['GET', 'POST'])
-@role_required('teacher')
+@role_required(('teacher', 'assistant'))
 @permission_required()
 def teacher_grade_entry():
     def _letter_from_ratio(ratio_percent: float) -> str:
@@ -3264,7 +3685,7 @@ def teacher_grade_entry():
         flash('Oturum süresi doldu. Lütfen tekrar giriş yapın.', 'warning')
         return redirect(url_for('login'))
 
-    teacher_classes = Class.query.filter_by(teacher_id=user.id).all()
+    teacher_classes = _accessible_classes(user)
     class_lookup = {cls.id: cls for cls in teacher_classes}
 
     if request.method == 'POST':
@@ -3319,8 +3740,8 @@ def teacher_grade_entry():
                 course = Course(
                     code=course_code,
                     title=cls.name[:120],
-                    credit=3,
-                    teacher_id=user.id,
+                    credit=DEFAULT_COURSE_CREDIT, ects=DEFAULT_COURSE_ECTS,
+                    teacher_id=cls.teacher_id,
                     term_id=None,
                 )
                 db.session.add(course)
@@ -3331,7 +3752,7 @@ def teacher_grade_entry():
                 course_id=course.id,
             ).first()
             if not enrollment:
-                enrollment = CourseEnrollment(student_id=student_id, course_id=course.id)
+                enrollment = CourseEnrollment(student_id=student_id, course_id=course.id, approved=True)
                 db.session.add(enrollment)
                 db.session.flush()
 
@@ -3340,6 +3761,7 @@ def teacher_grade_entry():
                 assessment_name=f"{assessment_name} ({score:g}/{max_points:g})",
                 letter_grade=letter_grade,
                 grade_point=GradeRecord.point_from_letter(letter_grade),
+                entered_by_id=user.id,
             )
             db.session.add(grade)
             db.session.commit()
@@ -3370,7 +3792,7 @@ def teacher_grade_entry():
                 GradeRecord.query
                 .join(CourseEnrollment, GradeRecord.enrollment_id == CourseEnrollment.id)
                 .join(Course, CourseEnrollment.course_id == Course.id)
-                .filter(Course.teacher_id == user.id, CourseEnrollment.student_id.in_(student_ids))
+                .filter(Course.code.in_([f"CLS{c.id:04d}" for c in teacher_classes]), CourseEnrollment.student_id.in_(student_ids))
                 .order_by(GradeRecord.created_at.desc())
                 .limit(50)
                 .all()
@@ -3387,7 +3809,7 @@ def teacher_grade_entry():
 
 
 @app.route('/teacher/course-roster', methods=['GET'])
-@role_required('teacher')
+@role_required(('teacher', 'assistant'))
 @permission_required()
 def teacher_course_roster():
     user = db.session.get(User, session.get('user_id'))
@@ -3396,7 +3818,7 @@ def teacher_course_roster():
         flash('Oturum süresi doldu. Lütfen tekrar giriş yapın.', 'warning')
         return redirect(url_for('login'))
 
-    teacher_courses = Course.query.filter_by(teacher_id=user.id).order_by(Course.code.asc()).all()
+    teacher_courses = _accessible_courses(user)
     selected_course = None
     selected_course_id_raw = (request.args.get('course_id') or '').strip()
     if selected_course_id_raw.isdigit():
@@ -3413,7 +3835,7 @@ def teacher_course_roster():
             CourseEnrollment.query
             .join(Student, CourseEnrollment.student_id == Student.id)
             .join(User, Student.id == User.id)
-            .filter(CourseEnrollment.course_id == selected_course.id)
+            .filter(CourseEnrollment.course_id == selected_course.id, CourseEnrollment.approved.is_(True))
         )
         if search_q:
             like = f'%{search_q}%'
@@ -3454,7 +3876,7 @@ def teacher_course_roster():
 
 # ------------------ TEACHER CLASS HISTORY ------------------
 @app.route('/teacher/history/<int:class_id>')
-@role_required('teacher')
+@role_required(('teacher', 'assistant'))
 @permission_required()
 def teacher_class_history(class_id):
     user = db.session.get(User, session.get('user_id'))
@@ -3463,7 +3885,7 @@ def teacher_class_history(class_id):
         flash('Oturum süresi doldu. Lütfen tekrar giriş yapın.', 'warning')
         return redirect(url_for('login'))
 
-    cls = Class.query.filter_by(id=class_id, teacher_id=user.id).first_or_404()
+    cls = _accessible_class_or_404(class_id)
 
     week_filter = request.args.get('week', '').strip()
     start_date = request.args.get('start', '').strip()
@@ -3513,7 +3935,7 @@ def teacher_class_history(class_id):
 
 
 @app.route('/teacher/history/<int:class_id>/export')
-@role_required('teacher')
+@role_required(('teacher', 'assistant'))
 @permission_required()
 def export_teacher_class_history(class_id):
     user = db.session.get(User, session.get('user_id'))
@@ -3522,7 +3944,7 @@ def export_teacher_class_history(class_id):
         flash('Oturum süresi doldu. Lütfen tekrar giriş yapın.', 'warning')
         return redirect(url_for('login'))
 
-    cls = Class.query.filter_by(id=class_id, teacher_id=user.id).first_or_404()
+    cls = _accessible_class_or_404(class_id)
 
     week_filter = request.args.get('week', '').strip()
     start_date = request.args.get('start', '').strip()
@@ -3595,7 +4017,7 @@ def export_teacher_class_history(class_id):
 
 
 @app.route('/teacher/session/<int:session_id>/stats')
-@role_required('teacher')
+@role_required(('teacher', 'assistant'))
 @permission_required()
 def session_stats(session_id):
     session_obj = AttendanceSession.query.get_or_404(session_id)
@@ -3622,7 +4044,7 @@ def teacher_history_redirect():
 
 # ------------------ SESSION DETAIL ------------------
 @app.route('/teacher/session/<int:session_id>')
-@role_required('teacher')
+@role_required(('teacher', 'assistant'))
 @permission_required()
 def session_detail(session_id):
     session_obj = AttendanceSession.query.get_or_404(session_id)
@@ -3717,8 +4139,36 @@ def teacher_account():
             return permission_error
 
         action = _normalize_form_text(request.form.get('action'), max_length=40).lower()
-        if action not in {'change_password', 'delete_account'}:
+        if action not in {'change_password', 'delete_account', 'update_profile', 'upload_photo', 'remove_photo'}:
             flash('Geçersiz işlem.', 'warning')
+            return redirect(url_for('teacher_account'))
+
+        if action == 'update_profile':
+            user.academic_title = _normalize_form_text(request.form.get('academic_title'), max_length=60) or None
+            user.faculty = _normalize_form_text(request.form.get('faculty'), max_length=140) or None
+            user.department = _normalize_form_text(request.form.get('department'), max_length=140) or None
+            user.office = _normalize_form_text(request.form.get('office'), max_length=80) or None
+            user.office_hours = _normalize_form_text(request.form.get('office_hours'), max_length=160) or None
+            db.session.commit()
+            flash(_lang_text('Profil bilgileri güncellendi.', 'Profile updated.'), 'success')
+            return redirect(url_for('teacher_account'))
+
+        if action == 'remove_photo':
+            _remove_profile_photo_file(user.photo_filename)
+            user.photo_filename = None
+            db.session.commit()
+            flash(_lang_text('Fotoğraf kaldırıldı.', 'Photo removed.'), 'success')
+            return redirect(url_for('teacher_account'))
+
+        if action == 'upload_photo':
+            upload = request.files.get('photo')
+            error = (_save_profile_photo(user, upload, prefix='t') if upload and upload.filename
+                     else _lang_text('Bir fotoğraf seçin.', 'Choose a photo.'))
+            if error:
+                flash(error, 'warning')
+            else:
+                db.session.commit()
+                flash(_lang_text('Fotoğraf güncellendi.', 'Photo updated.'), 'success')
             return redirect(url_for('teacher_account'))
 
         if action == 'change_password':
@@ -3770,6 +4220,7 @@ def teacher_account():
             for student in user.students:
                 db.session.delete(student)
 
+            _remove_profile_photo_file(user.photo_filename)
             db.session.delete(user)
             db.session.commit()
 
@@ -3777,7 +4228,451 @@ def teacher_account():
             flash('Hesabınız silindi.', 'success')
             return redirect(url_for('login'))
 
-    return render_template('teacher_account.html')
+    return render_template('account.html', **_account_context(
+        user, _lang_text('Öğretmen', 'Teacher'), 'teacher_account', show_profile=True, photo_enabled=True,
+        photo_url=url_for('teacher_photo', user_id=user.id) if user.photo_filename else None, delete_mode='enabled'))
+
+
+@app.route('/admin/account', methods=['GET', 'POST'])
+@role_required('admin')
+@permission_required()
+@csrf_protect
+def admin_account():
+    """Admin profile summary and password change (no self-delete: the system must keep an admin)."""
+    return _staff_account_page('admin_account', _lang_text('Yönetici', 'Administrator'))
+
+
+@app.route('/registrar/account', methods=['GET', 'POST'])
+@role_required('registrar')
+@permission_required()
+@csrf_protect
+def registrar_account():
+    return _staff_account_page('registrar_account', _lang_text('Öğrenci İşleri', 'Student Affairs'))
+
+
+def _account_context(user, role_label, endpoint, show_profile=False, photo_url=None, photo_enabled=False,
+                     delete_mode=None):
+    """Context for the shared account.html page (every role renders the same template)."""
+    return {
+        'user': user,
+        'role_label': role_label,
+        'acc_endpoint': endpoint,
+        'show_profile': show_profile,
+        'photo_enabled': photo_enabled,
+        'photo_url': photo_url,
+        'delete_mode': delete_mode,
+        'password_min_length': int(app.config.get('PASSWORD_MIN_LENGTH', 10) or 10),
+    }
+
+
+def _staff_account_page(endpoint, role_label):
+    """Shared profile + password change page for staff roles (admin, Student Affairs)."""
+    user = db.session.get(User, session.get('user_id'))
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        current_password = request.form.get('current_password') or ''
+        new_password = request.form.get('new_password') or ''
+        new_password_confirm = request.form.get('new_password_confirm') or ''
+        if not current_password or not new_password or not new_password_confirm:
+            flash(_lang_text('Tüm şifre alanları zorunludur.', 'All password fields are required.'), 'warning')
+        elif not user.check_password(current_password):
+            flash(_lang_text('Mevcut şifre hatalı.', 'Current password is incorrect.'), 'danger')
+        elif new_password != new_password_confirm:
+            flash(_lang_text('Yeni şifre ve onay eşleşmiyor.', 'New password and confirmation do not match.'), 'warning')
+        else:
+            password_error = validate_password_policy(new_password, user_name=user.name, user_email=user.email)
+            if password_error:
+                flash(password_error, 'danger')
+            else:
+                user.set_password(new_password)
+                db.session.commit()
+                _log_admin_operation('password_change_self', user.id, None, None)
+                flash(_lang_text('Şifreniz başarıyla değiştirildi.', 'Your password has been changed.'), 'success')
+        return redirect(url_for(endpoint))
+
+    return render_template('account.html', **_account_context(user, role_label, endpoint))
+
+
+@app.route('/registrar/dashboard', methods=['GET', 'POST'])
+@role_required('registrar')
+@permission_required()
+def registrar_dashboard():
+    user = db.session.get(User, session.get('user_id'))
+    if request.method == 'POST':
+        return _handle_user_calendar_dashboard_post(user, PERMISSIONS['REGISTRAR_DASHBOARD_CALENDAR_UPDATE'], 'registrar_dashboard')
+
+    groups = StudentGroup.query.all()
+    student_count = Student.query.count()
+    grouped_ids = {s.id for g in groups for s in g.students}
+    profile = _staff_profile(user, _lang_text('Öğrenci İşleri', 'Student Affairs'), 'registrar_account', [
+        (student_count, _lang_text('Öğrenci', 'Students')),
+        (len(groups), _lang_text('Bölüm grubu', 'Dept. groups')),
+        (max(student_count - len(grouped_ids), 0), _lang_text('Grupsuz', 'Ungrouped')),
+    ])
+    _, upcoming, events = _serialize_user_calendar_events(user.id)
+    return _render_home_dashboard(user, 'registrar', 'registrar_dashboard',
+                                  _lang_text('Öğrenci İşleri Paneli', 'Student Affairs Dashboard'), profile, events, len(upcoming))
+
+
+@app.route('/teacher/class/<int:class_id>/assistants', methods=['POST'])
+@role_required('teacher')
+@permission_required()
+@csrf_protect
+def teacher_class_assistants(class_id):
+    """The class's teacher adds or removes teaching assistants (users with the 'assistant' role)."""
+    cls = db.session.get(Class, class_id)
+    if not cls or cls.teacher_id != session.get('user_id'):
+        flash(_lang_text('Bu derse asistan atama yetkiniz yok.', 'You cannot assign assistants to this class.'), 'danger')
+        return redirect(url_for('teacher_attendance_hub'))
+
+    action = _normalize_form_text(request.form.get('action'), max_length=20).lower()
+    if action == 'remove':
+        raw = _normalize_form_text(request.form.get('assistant_id'), max_length=20)
+        assistant = db.session.get(User, int(raw)) if raw.isdigit() else None
+        if assistant is not None and assistant in cls.assistants:
+            cls.assistants.remove(assistant)
+            db.session.commit()
+            flash(_lang_text(f'{assistant.name} bu dersten çıkarıldı.', f'{assistant.name} removed from this class.'), 'success')
+        return redirect(url_for('teacher_attendance_hub', open=cls.id))
+
+    assistant = _resolve_recipient(request.form.get('assistant'))
+    if assistant is None or assistant.role != 'assistant':
+        flash(_lang_text('Asistan bulunamadı. Listeden asistan rolündeki bir kullanıcı seçin.',
+                         'Assistant not found. Pick a user with the assistant role from the list.'), 'warning')
+    elif assistant in cls.assistants:
+        flash(_lang_text('Bu kişi zaten bu dersin asistanı.', 'This person already assists this class.'), 'info')
+    else:
+        cls.assistants.append(assistant)
+        db.session.commit()
+        flash(_lang_text(f'{assistant.name} derse asistan olarak eklendi.', f'{assistant.name} added as an assistant.'), 'success')
+    return redirect(url_for('teacher_attendance_hub', open=cls.id))
+
+
+@app.route('/assistant/dashboard', methods=['GET', 'POST'])
+@role_required('assistant')
+@permission_required()
+def assistant_dashboard():
+    user = db.session.get(User, session.get('user_id'))
+    if request.method == 'POST':
+        return _handle_user_calendar_dashboard_post(user, PERMISSIONS['ASSISTANT_DASHBOARD_CALENDAR_UPDATE'], 'assistant_dashboard')
+
+    classes = user.assisted_classes
+    profile = _staff_profile(user, _lang_text('Asistan', 'Assistant'), 'assistant_account', [
+        (len(classes), _lang_text('Ders', 'Classes')),
+        (len({st.id for cls in classes for st in cls.students}), _lang_text('Öğrenci', 'Students')),
+    ])
+    _, upcoming, events = _serialize_user_calendar_events(user.id)
+    return _render_home_dashboard(user, 'assistant', 'assistant_dashboard',
+                                  _lang_text('Asistan Paneli', 'Assistant Dashboard'), profile, events, len(upcoming))
+
+
+# ------------------ ADVISOR ------------------
+def _advisees_of(teacher_id):
+    """Students whose effective advisor is this teacher (own assignment or department group)."""
+    group_ids = [g.id for g in StudentGroup.query.filter_by(advisor_id=teacher_id).all()]
+    candidates = {s.id: s for s in Student.query.filter_by(advisor_id=teacher_id).all()}
+    if group_ids:
+        for s in Student.query.filter(Student.groups.any(StudentGroup.id.in_(group_ids))).all():
+            candidates.setdefault(s.id, s)
+    return [s for s in candidates.values() if (s.advisor_info()[0] or User()).id == teacher_id]
+
+
+def _advisee_or_none(student_id):
+    """The student only if the logged-in teacher is their advisor (admin may see any)."""
+    student = db.session.get(Student, student_id)
+    if not student:
+        return None
+    advisor = student.advisor_info()[0]
+    if session.get('role') != 'admin' and (advisor is None or advisor.id != session.get('user_id')):
+        return None
+    return student
+
+
+def _student_academic_summary(student):
+    """Per-course grades and per-class attendance for one student (advisor view)."""
+    courses, weighted_points, weighted_credits = [], 0.0, 0
+    for enrollment in sorted(student.course_enrollments, key=lambda e: e.course.code if e.course else ''):
+        course = enrollment.course
+        if not course:
+            continue
+        avg = (sum(g.grade_point for g in enrollment.grades) / len(enrollment.grades)) if enrollment.grades else None
+        if avg is not None and (course.ects or 0) > 0:
+            weighted_points += avg * course.ects
+            weighted_credits += course.ects
+        courses.append({'course': course, 'grades': enrollment.grades, 'average': avg})
+
+    attendance = []
+    for cls in sorted(student.classes, key=lambda c: c.name or ''):
+        total = AttendanceSession.query.filter_by(class_id=cls.id, confirmed=True).count()
+        attended = (
+            db.session.query(func.count(AttendanceRecord.id))
+            .join(AttendanceSession, AttendanceRecord.session_id == AttendanceSession.id)
+            .filter(AttendanceSession.class_id == cls.id, AttendanceSession.confirmed == True,
+                    AttendanceRecord.student_id == student.id, AttendanceRecord.present == True)
+            .scalar() or 0
+        )
+        pct = (attended / total * 100) if total else 0
+        attendance.append({'cls': cls, 'total': total, 'attended': attended, 'percentage': pct,
+                           'risk': total > 0 and pct < 70})
+    gpa = (weighted_points / weighted_credits) if weighted_credits else None
+    return {'courses': courses, 'attendance': attendance, 'gpa': gpa, 'credits': weighted_credits}
+
+
+STUDENT_PHOTO_DIR = os.path.join(app.root_path, 'uploads', 'student_photos')
+STUDENT_PHOTO_MAX_BYTES = 2 * 1024 * 1024
+
+
+def _save_profile_photo(owner, upload, prefix=''):
+    """Validate, re-encode (strips metadata and any embedded payload) and store a profile photo for a
+    Student or User (anything with id and photo_filename). Returns an error message, or None on success."""
+    from PIL import Image, ImageOps
+    data = upload.read(STUDENT_PHOTO_MAX_BYTES + 1)
+    if not data:
+        return _lang_text('Bir fotoğraf seçin.', 'Choose a photo.')
+    if len(data) > STUDENT_PHOTO_MAX_BYTES:
+        return _lang_text('Fotoğraf en fazla 2 MB olabilir.', 'The photo can be at most 2 MB.')
+    try:
+        probe = Image.open(BytesIO(data))
+        probe.verify()
+        image = Image.open(BytesIO(data))
+        if image.format not in ('JPEG', 'PNG', 'WEBP') or image.width * image.height > 25_000_000:
+            raise ValueError('unsupported image')
+        image = ImageOps.fit(ImageOps.exif_transpose(image).convert('RGB'), (400, 400))
+    except Exception:
+        return _lang_text('Geçerli bir JPG, PNG veya WEBP fotoğraf yükleyin.', 'Upload a valid JPG, PNG or WEBP photo.')
+    os.makedirs(STUDENT_PHOTO_DIR, exist_ok=True)
+    filename = f'{prefix}{owner.id}_{secrets.token_hex(8)}.jpg'
+    image.save(os.path.join(STUDENT_PHOTO_DIR, filename), 'JPEG', quality=88)
+    _remove_profile_photo_file(owner.photo_filename)
+    owner.photo_filename = filename
+    return None
+
+
+def _remove_profile_photo_file(filename):
+    if filename:
+        try:
+            os.remove(os.path.join(STUDENT_PHOTO_DIR, os.path.basename(filename)))
+        except OSError:
+            pass
+
+
+@app.route('/student-photo/<int:student_id>')
+@login_required_session
+def student_photo(student_id):
+    """A student's own photo, or any photo for teachers, registrars and admins."""
+    role = session.get('role')
+    if not (role in ('teacher', 'registrar', 'admin') or (role == 'student' and session.get('user_id') == student_id)):
+        abort(404)
+    student = db.session.get(Student, student_id)
+    if not student or not student.photo_filename:
+        abort(404)
+    response = send_from_directory(STUDENT_PHOTO_DIR, os.path.basename(student.photo_filename), mimetype='image/jpeg')
+    response.headers['Cache-Control'] = 'private, max-age=300'
+    return response
+
+
+@app.route('/teacher-photo/<int:user_id>')
+@login_required_session
+def teacher_photo(user_id):
+    """A teacher's profile photo; staff photos are visible to every signed-in user."""
+    teacher = db.session.get(User, user_id)
+    if not teacher or teacher.role != 'teacher' or not teacher.photo_filename:
+        abort(404)
+    response = send_from_directory(STUDENT_PHOTO_DIR, os.path.basename(teacher.photo_filename), mimetype='image/jpeg')
+    response.headers['Cache-Control'] = 'private, max-age=300'
+    return response
+
+
+def _teacher_profile_summary(user, teacher_classes):
+    not_set = _lang_text('Tanımlı değil', 'Not set')
+    return {
+        'id': user.id,
+        'name': user.name,
+        'title': (user.academic_title or '').strip(),
+        'email': user.email,
+        'faculty': (user.faculty or '').strip() or not_set,
+        'department': (user.department or '').strip() or not_set,
+        'office': (user.office or '').strip() or not_set,
+        'office_hours': (user.office_hours or '').strip() or not_set,
+        'class_count': len(teacher_classes),
+        'student_count': len({st.id for cls in teacher_classes for st in cls.students}),
+        'advisee_count': len(_advisees_of(user.id)),
+        'assistant_count': len({a.id for cls in teacher_classes for a in cls.assistants}),
+        'has_photo': bool(user.photo_filename),
+        'initials': ''.join(part[0] for part in (user.name or '?').split()[:2]).upper(),
+    }
+
+
+def _student_class_level(student):
+    """Year of study, derived from the entry year in the student number (e.g. K20240362 -> 2024)
+    and the current academic year; None when it cannot be determined."""
+    match = re.search(r'(20\d{2})', student.student_number or '')
+    if not match:
+        return None
+    academic = re.search(r'(20\d{2})', student.university_academic_year or '')
+    if academic:
+        start_year = int(academic.group(1))
+    else:
+        today = datetime.date.today()
+        start_year = today.year if today.month >= 9 else today.year - 1
+    level = start_year - int(match.group(1)) + 1
+    return level if 1 <= level <= 8 else None
+
+
+def _student_profile_summary(student):
+    not_set = _lang_text('Tanımlı değil', 'Not set')
+    advisor = student.advisor_info()[0]
+    level = _student_class_level(student)
+    department = (student.university_department or '').strip() or ', '.join(sorted(g.code for g in student.groups))
+    academic_year = (student.university_academic_year or '').strip()
+    term = (student.university_term or '').strip()
+    return {
+        'name': student.user.name if student.user else '-',
+        'student_number': student.student_number,
+        'email': student.user.email if student.user else '-',
+        'faculty': (student.university_faculty or '').strip() or not_set,
+        'department': department or not_set,
+        'class_level': _lang_text(f'{level}. sınıf', f'Year {level}') if level else not_set,
+        'period': ' · '.join(part for part in (academic_year, term) if part) or not_set,
+        'advisor': advisor.name if advisor else not_set,
+        'has_photo': bool(student.photo_filename),
+        'initials': ''.join(part[0] for part in (student.user.name if student.user else '?').split()[:2]).upper(),
+    }
+
+
+@app.route('/teacher/advisees')
+@role_required('teacher')
+@permission_required()
+def teacher_advisees():
+    """Student directory for teachers: every student, with the teacher's own advisees marked."""
+    user = db.session.get(User, session.get('user_id'))
+    mine = {s.id for s in _advisees_of(user.id)} if user else set()
+    rows = []
+    for student in sorted(Student.query.all(), key=lambda s: (s.user.name if s.user else '')):
+        advisor = student.advisor_info()[0]
+        row = {
+            'student': student,
+            'name': student.user.name if student.user else '-',
+            'groups': ', '.join(sorted(g.code for g in student.groups)),
+            'advisor_name': advisor.name if advisor else None,
+            'is_mine': student.id in mine,
+            'gpa': None, 'course_count': None, 'risk_count': 0,
+        }
+        if row['is_mine']:
+            summary = _student_academic_summary(student)
+            row.update(gpa=summary['gpa'], course_count=len(summary['courses']),
+                       risk_count=sum(1 for a in summary['attendance'] if a['risk']))
+        rows.append(row)
+    return render_template('teacher_advisees.html', user=user, rows=rows)
+
+
+# Read-only "view as student": the teacher's session is swapped for the student's, and only the
+# student's read pages stay reachable until they exit (see restrict_view_as_student).
+VIEW_AS_ALLOWED_ENDPOINTS = {
+    'static', 'view_as_student_exit', 'logout', 'set_language', 'student_photo', 'student_dashboard', 'student_absence',
+    'student_identity_info', 'student_education_info', 'student_family_info', 'student_documents_info',
+    'student_contact_info', 'student_term_courses',
+    'student_transcript', 'student_academic_calendar', 'student_exams', 'student_class_history', 'reports',
+}  # finance pages (current account, payments) are deliberately not viewable by teachers
+
+
+def _end_view_as():
+    """Swap the teacher's own identity back into the session."""
+    origin = session.pop('view_as_origin', None)
+    session.pop('view_as_name', None)
+    if origin:
+        session['user_id'] = origin['user_id']
+        session['role'] = origin['role']
+    return origin
+
+
+def _view_as_can_edit():
+    """True while a teacher views one of their own advisees (effective advisor), who may edit courses."""
+    origin = session.get('view_as_origin')
+    if not origin:
+        return False
+    student = db.session.get(Student, session.get('user_id'))
+    advisor = student.advisor_info()[0] if student else None
+    return bool(advisor and advisor.id == origin['user_id'])
+
+
+@app.context_processor
+def inject_view_as_flags():
+    if not session.get('view_as_origin'):
+        return {'view_as_can_edit': False, 'view_as_profile': None}
+    student = db.session.get(Student, session.get('user_id'))
+    return {
+        'view_as_can_edit': _view_as_can_edit(),
+        'view_as_profile': _student_profile_summary(student) if student else None,
+    }
+
+
+@app.before_request
+def restrict_view_as_student():
+    if not session.get('view_as_origin'):
+        return None
+    endpoint = request.endpoint
+    if endpoint in ('student_term_courses_update', 'view_as_term_plan_approve') and _view_as_can_edit():
+        return None
+    if endpoint in VIEW_AS_ALLOWED_ENDPOINTS and (request.method == 'GET' or endpoint in (
+            'view_as_student_exit', 'logout', 'set_language')):
+        return None
+    if request.method == 'GET':
+        # A teacher page (top navigation): leave the student view and open it as the teacher.
+        _end_view_as()
+        return None
+    flash(_t('view_as_read_only'), 'warning')
+    return redirect(url_for('student_term_courses'))
+
+
+@app.route('/teacher/students/<int:student_id>/view', methods=['POST'])
+@role_required('teacher')
+@permission_required()
+@csrf_protect
+def teacher_view_student(student_id):
+    student = db.session.get(Student, student_id)
+    if not student or not student.user:
+        flash(_t('advisee_not_found'), 'warning')
+        return redirect(url_for('teacher_advisees'))
+    session['view_as_origin'] = {'user_id': session.get('user_id'), 'role': session.get('role')}
+    session['view_as_name'] = student.user.name
+    session['user_id'] = student.id
+    session['role'] = 'student'
+    return redirect(url_for('student_term_courses'))
+
+
+@app.route('/view-as/exit', methods=['POST'])
+@login_required_session
+@csrf_protect
+def view_as_student_exit():
+    if not _end_view_as():
+        return redirect(url_for('login'))
+    return redirect(url_for('teacher_advisees'))
+
+
+@app.route('/teacher/advisees/<int:student_id>')
+@role_required('teacher')
+@permission_required()
+def teacher_advisee_detail(student_id):
+    student = _advisee_or_none(student_id)
+    if not student:
+        flash(_t('advisee_not_found'), 'warning')
+        return redirect(url_for('teacher_advisees'))
+    return render_template('teacher_advisee_detail.html', student=student,
+                           name=student.user.name if student.user else '-',
+                           email=student.user.email if student.user else '-',
+                           summary=_student_academic_summary(student))
+
+
+@app.route('/assistant/account', methods=['GET', 'POST'])
+@role_required('assistant')
+@permission_required()
+@csrf_protect
+def assistant_account():
+    return _staff_account_page('assistant_account', _lang_text('Asistan', 'Teaching Assistant'))
 
 
 # ------------------ STUDENT ACCOUNT ------------------
@@ -3797,8 +4692,28 @@ def student_account():
             return permission_error
 
         action = _normalize_form_text(request.form.get('action'), max_length=40).lower()
-        if action not in {'change_password', 'delete_account'}:
+        if action not in {'change_password', 'delete_account', 'upload_photo', 'remove_photo'}:
             flash('Geçersiz işlem.', 'warning')
+            return redirect(url_for('student_account'))
+
+        if action in ('upload_photo', 'remove_photo'):
+            student = user.students[0] if user.students else None
+            if student is None:
+                flash('Öğrenci profili bulunamadı.', 'warning')
+                return redirect(url_for('student_account'))
+            if action == 'remove_photo':
+                _remove_profile_photo_file(student.photo_filename)
+                student.photo_filename = None
+                db.session.commit()
+                flash(_lang_text('Fotoğraf kaldırıldı.', 'Photo removed.'), 'success')
+                return redirect(url_for('student_account'))
+            upload = request.files.get('photo')
+            error = _save_profile_photo(student, upload) if upload and upload.filename else _lang_text('Bir fotoğraf seçin.', 'Choose a photo.')
+            if error:
+                flash(error, 'warning')
+            else:
+                db.session.commit()
+                flash(_lang_text('Fotoğraf güncellendi.', 'Photo updated.'), 'success')
             return redirect(url_for('student_account'))
 
         if action == 'change_password':
@@ -3832,7 +4747,11 @@ def student_account():
             flash('Hesap silme devre dışı. Lütfen sistem yöneticisiyle iletişime geçin.', 'warning')
             return redirect(url_for('student_account'))
 
-    return render_template('student_account.html')
+    profile = user.students[0] if user.students else None
+    return render_template('account.html', **_account_context(
+        user, _lang_text('Öğrenci', 'Student'), 'student_account', photo_enabled=profile is not None,
+        photo_url=url_for('student_photo', student_id=user.id) if profile and profile.photo_filename else None,
+        delete_mode='disabled'))
 
 
 # ------------------ STUDENT DASHBOARD ------------------
@@ -3917,66 +4836,9 @@ def student_dashboard():
             flash('Takvim etkinliği silindi.', 'success')
             return redirect(url_for('student_dashboard'))
 
-    city_arg = (request.args.get('city') or '').strip()
-    lat_arg = (request.args.get('lat') or '').strip()
-    lon_arg = (request.args.get('lon') or '').strip()
-
-    weather_lat = session.get('weather_lat')
-    weather_lon = session.get('weather_lon')
-    weather_city = (session.get('weather_city') or 'Istanbul').strip()
-
-    # Manual city search takes precedence and clears auto-location cache.
-    if city_arg:
-        weather_city = city_arg[:50]
-        session['weather_city'] = weather_city
-        session.pop('weather_lat', None)
-        session.pop('weather_lon', None)
-        weather_lat = None
-        weather_lon = None
-
-    # Geolocation coordinates update weather source when provided.
-    if lat_arg and lon_arg:
-        try:
-            parsed_lat = float(lat_arg)
-            parsed_lon = float(lon_arg)
-            if -90 <= parsed_lat <= 90 and -180 <= parsed_lon <= 180:
-                weather_lat = parsed_lat
-                weather_lon = parsed_lon
-                session['weather_lat'] = parsed_lat
-                session['weather_lon'] = parsed_lon
-        except ValueError:
-            pass
-
-    if weather_lat is not None and weather_lon is not None:
-        weather = _fetch_weather(lat=float(weather_lat), lon=float(weather_lon))
-    else:
-        weather = _fetch_weather(city=weather_city)
-
-    announcements = []
-    try:
-        now = datetime.datetime.now()
-        student_course_ids = [en.course_id for en in student.course_enrollments]
-        announcements_query = Announcement.query.filter(
-            ((Announcement.target_role.is_(None)) | (Announcement.target_role == 'all') | (Announcement.target_role == 'student')),
-            ((Announcement.starts_at.is_(None)) | (Announcement.starts_at <= now)),
-            ((Announcement.ends_at.is_(None)) | (Announcement.ends_at >= now)),
-        )
-        if student_course_ids:
-            announcements_query = announcements_query.filter(
-                (Announcement.course_id.is_(None)) | (Announcement.course_id.in_(student_course_ids))
-            )
-        else:
-            announcements_query = announcements_query.filter(Announcement.course_id.is_(None))
-        announcements = announcements_query.order_by(Announcement.created_at.desc()).limit(6).all()
-    except Exception:
-        db.session.rollback()
-        announcements = []
-
     today = datetime.date.today()
     all_events = StudentCalendarEvent.query.filter_by(student_id=student.id).order_by(StudentCalendarEvent.event_date.asc()).all()
-    upcoming_events = [e for e in all_events if e.event_date >= today][:12]
-    upcoming_exam_count = sum(1 for e in upcoming_events if e.event_type == 'exam')
-    upcoming_activity_count = sum(1 for e in upcoming_events if e.event_type == 'activity')
+    upcoming_count = len([e for e in all_events if e.event_date >= today][:12])
     calendar_events = [
         {
             'id': e.id,
@@ -3988,41 +4850,141 @@ def student_dashboard():
         for e in all_events
     ]
 
-    cards = [
-        {'title': _t('identity_information'), 'desc': _t('identity_information_desc'), 'endpoint': 'student_identity_info'},
-        {'title': _t('education_information'), 'desc': _t('education_information_desc'), 'endpoint': 'student_education_info'},
-        {'title': _t('family_information'), 'desc': _t('family_information_desc'), 'endpoint': 'student_family_info'},
-        {'title': _t('documents'), 'desc': _t('documents_desc'), 'endpoint': 'student_documents_info'},
-        {'title': _t('contact'), 'desc': _t('contact_desc'), 'endpoint': 'student_contact_info'},
-        {'title': _t('current_account'), 'desc': _t('current_account_desc'), 'endpoint': 'student_current_account'},
-        {'title': _t('payments'), 'desc': _t('payments_desc'), 'endpoint': 'student_payment_info'},
-        {'title': _t('absence'), 'desc': _t('absence_desc'), 'endpoint': 'student_absence'},
-        {'title': _t('term_courses'), 'desc': _t('term_courses_desc'), 'endpoint': 'student_term_courses'},
-        {'title': _t('transcript'), 'desc': _t('transcript_desc'), 'endpoint': 'student_transcript'},
-        {'title': _t('academic_calendar'), 'desc': _t('academic_calendar_desc'), 'endpoint': 'student_academic_calendar'},
-        {'title': _t('exams'), 'desc': _t('exams_desc'), 'endpoint': 'student_exams'},
-    ]
-
-    dashboard_summary = {
-        'joined_class_count': len(student.classes),
-        'upcoming_events_count': len(upcoming_events),
-        'announcement_count': len(announcements),
-        'calendar_total_count': len(all_events),
+    sp = _student_profile_summary(student)
+    profile = {
+        'name': sp['name'],
+        'initials': sp['initials'],
+        'photo_url': url_for('student_photo', student_id=student.id) if sp['has_photo'] else None,
+        'facts': [
+            (_lang_text('Öğrenci no', 'Student no'), sp['student_number']),
+            (_lang_text('E-posta', 'E-mail'), sp['email']),
+            (_lang_text('Fakülte', 'Faculty'), sp['faculty']),
+            (_lang_text('Bölüm', 'Department'), sp['department']),
+            (_lang_text('Sınıf', 'Year'), sp['class_level']),
+            (_lang_text('Danışman', 'Advisor'), sp['advisor']),
+        ],
+        'stats': [
+            (len(student.classes), _lang_text('Ders', 'Classes')),
+            (len(student.course_enrollments), _lang_text('Kayıtlı ders', 'Enrolled')),
+            (upcoming_count, _lang_text('Yaklaşan', 'Upcoming')),
+        ],
+        'edit_url': url_for('student_account'),
     }
+    return _render_home_dashboard(user, 'student', 'student_dashboard', _lang_text('Öğrenci Paneli', 'Student Dashboard'), profile,
+                                  calendar_events, upcoming_count)
+
+
+@app.route('/announcements')
+@login_required_session
+def announcements_inbox():
+    """Mailbox: announcements addressed to the user plus personal messages (inbox), and what they sent."""
+    user = db.session.get(User, session.get('user_id'))
+    role = session.get('role')
+    if not user or role not in ROLE_DASHBOARDS:
+        return redirect(url_for('login'))
+
+    def _newest_first(rows):
+        return sorted(rows, key=lambda r: r['created_at'] or datetime.datetime.min, reverse=True)
+
+    received_announcements = (_announcements_for_user(user, role, include_expired=True)
+                              .filter(Announcement.author_id != user.id)
+                              .order_by(Announcement.created_at.desc()).limit(200).all())
+    received_messages = Message.query.filter_by(recipient_id=user.id).order_by(Message.sent_at.desc()).limit(200).all()
+    sent_announcements = Announcement.query.filter_by(author_id=user.id).order_by(Announcement.created_at.desc()).limit(200).all()
+    sent_messages = Message.query.filter_by(sender_id=user.id).order_by(Message.sent_at.desc()).limit(200).all()
+
+    received = _newest_first([_mailbox_item(o) for o in received_announcements + received_messages])
+    sent = _newest_first([_mailbox_item(o) for o in sent_announcements + sent_messages])
+    can_send = role in {'admin', 'registrar', 'teacher'} or bool(sent)
+
+    # Advisors: term plans their advisees submitted, waiting for approval (oldest first).
+    approvals = []
+    if role == 'teacher':
+        approvals = sorted((s.term_plan for s in _advisees_of(user.id) if s.term_plan and s.term_plan.status == 'pending'),
+                           key=lambda p: p.submitted_at or datetime.datetime.min)
+
+    box = request.args.get('box', 'inbox')
+    if box not in {'inbox', 'sent', 'approvals'} or (box == 'sent' and not can_send) or (box == 'approvals' and role != 'teacher'):
+        box = 'inbox'
+    if box == 'approvals':
+        raw_id = (request.args.get('id') or '').strip()
+        selected_plan = next((p for p in approvals if str(p.student_id) == raw_id), None) or (approvals[0] if approvals else None)
+        return render_template(
+            'announcements_inbox.html',
+            box=box,
+            approvals=approvals,
+            selected_plan=selected_plan,
+            received_count=len(received),
+            sent_count=len(sent),
+            approval_count=len(approvals),
+            new_count=0,
+            can_send=can_send,
+            show_approvals=True,
+        )
+    items = sent if box == 'sent' else received
+
+    seen_at = user.announcements_seen_at
+    new_keys = {f'a{a.id}' for a in received_announcements if seen_at is None or (a.created_at and a.created_at > seen_at)}
+    new_keys |= {f'm{m.id}' for m in received_messages if not m.is_read}
+
+    # ?id= accepts "a12" / "m5"; a bare number means an announcement (older links).
+    raw_id = (request.args.get('id') or '').strip()
+    selected_key = f'a{raw_id}' if raw_id.isdigit() else raw_id
+    selected = next((i for i in items if i['key'] == selected_key), None) or (items[0] if items else None)
+
+    changed = False
+    if box == 'inbox' and selected and selected['kind'] == 'message' and not selected['obj'].is_read:
+        selected['obj'].is_read = True  # opening a message marks it read, like e-mail
+        new_keys.discard(selected['key'])
+        changed = True
+    if box == 'inbox' and any(k.startswith('a') for k in new_keys):
+        user.announcements_seen_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        changed = True
+    if changed:
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
     return render_template(
-        'student_dashboard.html',
-        user_name=user.name,
-        cards=cards,
-        announcements=announcements,
-        upcoming_events=upcoming_events,
-        calendar_events=calendar_events,
-        upcoming_exam_count=upcoming_exam_count,
-        upcoming_activity_count=upcoming_activity_count,
-        weather=weather,
-        weather_using_location=bool(weather and weather.get('source') == 'location'),
-        dashboard_summary=dashboard_summary,
+        'announcements_inbox.html',
+        box=box,
+        items=items,
+        selected=selected,
+        new_keys=new_keys,
+        received_count=len(received),
+        sent_count=len(sent),
+        new_count=len(new_keys),
+        can_send=can_send,
+        show_approvals=role == 'teacher',
+        approval_count=len(approvals),
     )
+
+
+@app.route('/messages/<int:message_id>/reply', methods=['POST'])
+@login_required_session
+@csrf_protect
+def message_reply(message_id):
+    """Reply to a personal message the current user received (users can't start threads with arbitrary people)."""
+    user = db.session.get(User, session.get('user_id'))
+    original = db.session.get(Message, message_id)
+    if not user or not original or original.recipient_id != user.id:
+        flash(_lang_text('Mesaj bulunamadı.', 'Message not found.'), 'warning')
+        return redirect(url_for('announcements_inbox'))
+
+    body = _normalize_form_text(request.form.get('body'), max_length=2000)
+    if not body:
+        flash(_lang_text('Yanıt boş olamaz.', 'The reply cannot be empty.'), 'warning')
+        return redirect(url_for('announcements_inbox', id=f'm{original.id}'))
+
+    subject = original.subject or ''
+    if not subject.lower().startswith('re:'):
+        subject = f'Re: {subject}'.strip()
+    reply = Message(sender_id=user.id, recipient_id=original.sender_id, subject=subject[:150], body=body)
+    db.session.add(reply)
+    db.session.commit()
+    flash(_lang_text('Yanıtınız gönderildi.', 'Your reply has been sent.'), 'success')
+    return redirect(url_for('announcements_inbox', box='sent', id=f'm{reply.id}'))
 
 
 @app.route('/reports')
@@ -4526,6 +5488,23 @@ def student_payment_info():
     return render_template('student_module_page.html', title=_t('payments'), details=details)
 
 
+def _term_plan_of(student):
+    """The student's term plan; an unsaved draft until they first submit."""
+    return student.term_plan or TermPlan(student_id=student.id, status='draft')
+
+
+def _term_plan_student_can_edit(student, plan):
+    """Students edit only an unsubmitted (or rejected) plan, and only once they have an advisor."""
+    return plan.status in ('draft', 'rejected') and student.advisor_info()[0] is not None
+
+
+def _add_drop_window_open(policy):
+    now = datetime.datetime.now()
+    return bool(policy) and not policy.is_locked \
+        and (policy.add_drop_start is None or now >= policy.add_drop_start) \
+        and (policy.add_drop_end is None or now <= policy.add_drop_end)
+
+
 @app.route('/student/term-courses')
 @role_required('student')
 @permission_required()
@@ -4544,7 +5523,7 @@ def student_term_courses():
             add_drop_start=None,
             add_drop_end=None,
             min_credits=0,
-            max_credits=30,
+            max_credits=45,
             is_locked=False,
         )
         db.session.add(policy)
@@ -4571,7 +5550,7 @@ def student_term_courses():
             db.session.add(Course(
                 code=code,
                 title=(cls.name or 'Course')[:120],
-                credit=3,
+                credit=DEFAULT_COURSE_CREDIT, ects=DEFAULT_COURSE_ECTS,
                 capacity=60,
                 schedule_slot=None,
                 teacher_id=cls.teacher_id,
@@ -4584,7 +5563,7 @@ def student_term_courses():
     student = user.students[0]
     _ensure_course_catalog_from_classes()
     policy = _get_or_create_registration_policy()
-    is_open = _is_add_drop_open(policy)
+    is_open = _is_add_drop_open(policy) or _view_as_can_edit()
 
     enrollments = (
         CourseEnrollment.query
@@ -4594,7 +5573,7 @@ def student_term_courses():
         .all()
     )
     enrolled_course_ids = {en.course_id for en in enrollments}
-    enrolled_credits = sum((en.course.credit or 0) for en in enrollments if en.course)
+    enrolled_credits = sum((en.course.ects or 0) for en in enrollments if en.course)
 
     available_courses = (
         Course.query
@@ -4611,11 +5590,17 @@ def student_term_courses():
         )
     }
 
+    plan = _term_plan_of(student)
+    advisor_mode = _view_as_can_edit()
     return render_template(
         'student_term_courses.html',
         student=student,
         policy=policy,
         is_open=is_open,
+        plan=plan,
+        advisor=student.advisor_info()[0],
+        advisor_mode=advisor_mode,
+        can_edit=is_open and (advisor_mode or _term_plan_student_can_edit(student, plan)),
         enrollments=enrollments,
         enrolled_course_ids=enrolled_course_ids,
         enrolled_credits=enrolled_credits,
@@ -4635,6 +5620,10 @@ def student_term_courses_update():
         return redirect(url_for('login'))
 
     student = user.students[0]
+    # An advisor editing their own advisee's courses from the teacher's student view.
+    advisor_mode = _view_as_can_edit()
+    actor_id = session['view_as_origin']['user_id'] if advisor_mode else user.id
+    actor_label = 'advisor' if advisor_mode else 'student-self'
     action = _normalize_form_text(request.form.get('action'), max_length=20)
     course_id_raw = _normalize_form_text(request.form.get('course_id'), max_length=20)
 
@@ -4649,19 +5638,24 @@ def student_term_courses_update():
 
     policy = CourseRegistrationPolicy.query.first()
     if not policy:
-        policy = CourseRegistrationPolicy(min_credits=0, max_credits=30, is_locked=False)
+        policy = CourseRegistrationPolicy(min_credits=0, max_credits=45, is_locked=False)
         db.session.add(policy)
         db.session.commit()
 
-    now = datetime.datetime.now()
-    window_open = (
-        not policy.is_locked
-        and (policy.add_drop_start is None or now >= policy.add_drop_start)
-        and (policy.add_drop_end is None or now <= policy.add_drop_end)
-    )
-    if not window_open:
+    if not (advisor_mode or _add_drop_window_open(policy)):
         flash('Ders ekleme-bırakma penceresi şu an kapalı.', 'warning')
         return redirect(url_for('student_term_courses'))
+
+    plan = _term_plan_of(student)
+    if not advisor_mode:
+        if student.advisor_info()[0] is None:
+            flash(_lang_text('Danışmanınız atanmadığı için ders kaydı yapamazsınız. Öğrenci işleriyle iletişime geçin.',
+                             'You cannot register for courses until an advisor is assigned. Contact Student Affairs.'), 'warning')
+            return redirect(url_for('student_term_courses'))
+        if not _term_plan_student_can_edit(student, plan):
+            flash(_lang_text('Programınız danışmanınıza gönderildi; değişiklikleri artık danışmanınız yapabilir.',
+                             'Your plan has been sent to your advisor; only your advisor can change it now.'), 'warning')
+            return redirect(url_for('student_term_courses'))
 
     enrollment = CourseEnrollment.query.filter_by(student_id=student.id, course_id=course.id).first()
 
@@ -4671,13 +5665,13 @@ def student_term_courses_update():
             return redirect(url_for('student_term_courses'))
 
         current_credits = (
-            db.session.query(func.coalesce(func.sum(Course.credit), 0))
+            db.session.query(func.coalesce(func.sum(Course.ects), 0))
             .join(CourseEnrollment, Course.id == CourseEnrollment.course_id)
             .filter(CourseEnrollment.student_id == student.id)
             .scalar() or 0
         )
-        if current_credits + (course.credit or 0) > (policy.max_credits or 30):
-            flash(f'Maksimum kredi limitini ({policy.max_credits or 30} kredi) aştınız.', 'warning')
+        if current_credits + (course.ects or 0) > (policy.max_credits or 45):
+            flash(f'Maksimum AKTS limitini ({policy.max_credits or 45} AKTS) aştınız.', 'warning')
             return redirect(url_for('student_term_courses'))
 
         if course.schedule_slot:
@@ -4701,14 +5695,16 @@ def student_term_courses_update():
                 return redirect(url_for('student_term_courses'))
 
         try:
-            db.session.add(CourseEnrollment(student_id=student.id, course_id=course.id))
+            # An advisor adding to an already approved plan makes the course official right away.
+            db.session.add(CourseEnrollment(student_id=student.id, course_id=course.id,
+                                            approved=advisor_mode and plan.status == 'approved'))
             db.session.flush()
             db.session.add(CourseEnrollmentAudit(
-                actor_user_id=user.id,
+                actor_user_id=actor_id,
                 student_id=student.id,
                 course_id=course.id,
                 action='add',
-                detail=f'student-self add {course.code}',
+                detail=f'{actor_label} add {course.code}',
             ))
             db.session.commit()
             flash(f'{course.code} dersi başarıyla eklendi.', 'success')
@@ -4722,25 +5718,25 @@ def student_term_courses_update():
         return redirect(url_for('student_term_courses'))
 
     current_credits = (
-        db.session.query(func.coalesce(func.sum(Course.credit), 0))
+        db.session.query(func.coalesce(func.sum(Course.ects), 0))
         .join(CourseEnrollment, Course.id == CourseEnrollment.course_id)
         .filter(CourseEnrollment.student_id == student.id)
         .scalar() or 0
     )
-    remaining_credits = current_credits - (course.credit or 0)
+    remaining_credits = current_credits - (course.ects or 0)
     if remaining_credits < (policy.min_credits or 0):
-        flash(f'Bu dersi bırakırsanız minimum kredi limitinin ({policy.min_credits or 0} kredi) altına düşersiniz.', 'warning')
+        flash(f'Bu dersi bırakırsanız minimum AKTS limitinin ({policy.min_credits or 0} AKTS) altına düşersiniz.', 'warning')
         return redirect(url_for('student_term_courses'))
 
     try:
         db.session.delete(enrollment)
         db.session.flush()
         db.session.add(CourseEnrollmentAudit(
-            actor_user_id=user.id,
+            actor_user_id=actor_id,
             student_id=student.id,
             course_id=course.id,
             action='drop',
-            detail=f'student-self drop {course.code}',
+            detail=f'{actor_label} drop {course.code}',
         ))
         db.session.commit()
         flash(f'{course.code} dersi başarıyla bırakıldı.', 'success')
@@ -4748,6 +5744,122 @@ def student_term_courses_update():
         db.session.rollback()
         flash('Ders bırakılırken bir hata oluştu. Lütfen tekrar deneyin.', 'danger')
     return redirect(url_for('student_term_courses'))
+
+
+@app.route('/student/term-plan/submit', methods=['POST'])
+@role_required('student')
+@permission_required()
+@csrf_protect
+def student_term_plan_submit():
+    """The student sends their course selection to the advisor; the plan is locked until a decision."""
+    user = db.session.get(User, session.get('user_id'))
+    if not user or not user.students:
+        session.clear()
+        return redirect(url_for('login'))
+    student = user.students[0]
+    plan = _term_plan_of(student)
+    policy = CourseRegistrationPolicy.query.first()
+    credits = sum((e.course.ects or 0) for e in student.course_enrollments if e.course)
+
+    if student.advisor_info()[0] is None:
+        flash(_lang_text('Danışmanınız atanmadığı için programınızı gönderemezsiniz.',
+                         'You cannot submit your plan until an advisor is assigned.'), 'warning')
+    elif plan.status not in ('draft', 'rejected'):
+        flash(_lang_text('Programınız zaten gönderildi.', 'Your plan has already been submitted.'), 'info')
+    elif not _add_drop_window_open(policy):
+        flash('Ders ekleme-bırakma penceresi şu an kapalı.', 'warning')
+    elif not student.course_enrollments:
+        flash(_lang_text('Göndermeden önce en az bir ders seçin.', 'Select at least one course before submitting.'), 'warning')
+    elif policy and credits < (policy.min_credits or 0):
+        flash(_lang_text(f'Minimum AKTS ({policy.min_credits}) sağlanmadan program gönderilemez.',
+                         f'Your plan needs at least {policy.min_credits} ECTS.'), 'warning')
+    else:
+        plan.status = 'pending'
+        plan.submitted_at = datetime.datetime.now()
+        plan.decided_at = plan.decided_by_id = plan.rejection_reason = None
+        db.session.add(plan)
+        db.session.commit()
+        flash(_lang_text('Programınız danışman onayına gönderildi. Danışmanınız onayladığında ya da reddettiğinde mesaj kutunuza bildirim gelecek.',
+                         'Your plan was sent to your advisor for approval. You will get a message in your inbox when they approve or reject it.'),
+              'popup-success')
+    return redirect(url_for('student_term_courses'))
+
+
+def _approve_term_plan(student, plan, advisor):
+    """Make the plan's enrollments official and tell the student (commits)."""
+    plan.status = 'approved'
+    plan.rejection_reason = None
+    plan.decided_at = datetime.datetime.now()
+    plan.decided_by_id = advisor.id
+    for enrollment in student.course_enrollments:
+        enrollment.approved = True
+    db.session.add(Message(
+        sender_id=advisor.id, recipient_id=student.id,
+        subject=_lang_text('Ders programınız onaylandı', 'Your course plan was approved'),
+        body=_lang_text('Danışmanınız dönem ders programınızı onayladı.', 'Your advisor approved your course plan for the term.'),
+    ))
+    db.session.commit()
+
+
+@app.route('/view-as/term-plan/approve', methods=['POST'])
+@login_required_session
+@csrf_protect
+def view_as_term_plan_approve():
+    """Advisor approves the plan from the advisee's course page, then returns to the approvals box."""
+    if not _view_as_can_edit():
+        flash(_t('view_as_read_only'), 'warning')
+        return redirect(url_for('student_term_courses'))
+    student = db.session.get(Student, session.get('user_id'))
+    plan = student.term_plan if student else None
+    _end_view_as()
+    if not plan or plan.status != 'pending':
+        flash(_lang_text('Onay bekleyen program bulunamadı.', 'No plan awaiting approval was found.'), 'warning')
+        return redirect(url_for('announcements_inbox', box='approvals'))
+    _approve_term_plan(student, plan, db.session.get(User, session.get('user_id')))
+    flash(_lang_text(f'{student.user.name} adlı öğrencinin ders programı onaylandı; öğrenciye bildirim gönderildi.',
+                     f"{student.user.name}'s course plan was approved and the student was notified."), 'popup-success')
+    return redirect(url_for('announcements_inbox', box='approvals'))
+
+
+@app.route('/teacher/term-plans/<int:student_id>/decision', methods=['POST'])
+@role_required('teacher')
+@permission_required()
+@csrf_protect
+def teacher_term_plan_decision(student_id):
+    """Advisor approves (enrollments become official) or rejects (with a reason) a submitted plan."""
+    student = _advisee_or_none(student_id)
+    plan = student.term_plan if student else None
+    if not plan or plan.status != 'pending':
+        flash(_lang_text('Onay bekleyen program bulunamadı.', 'No plan awaiting approval was found.'), 'warning')
+        return redirect(url_for('announcements_inbox', box='approvals'))
+
+    action = _normalize_form_text(request.form.get('action'), max_length=20)
+    reason = (request.form.get('reason') or '').strip()[:500]
+    advisor = db.session.get(User, session.get('user_id'))
+    if action == 'approve':
+        _approve_term_plan(student, plan, advisor)
+        flash(_lang_text('Karar öğrenciye bildirildi.', 'The student has been notified.'), 'success')
+        return redirect(url_for('announcements_inbox', box='approvals'))
+    elif action == 'reject':
+        if not reason:
+            flash(_lang_text('Reddetmek için bir sebep yazın.', 'Write a reason to reject.'), 'warning')
+            return redirect(url_for('announcements_inbox', box='approvals', id=student.id))
+        plan.status = 'rejected'
+        plan.rejection_reason = reason
+        subject = _lang_text('Ders programınız reddedildi', 'Your course plan was rejected')
+        body = _lang_text('Danışmanınız dönem ders programınızı reddetti. Sebep:\n\n',
+                          'Your advisor rejected your course plan for the term. Reason:\n\n') + reason + \
+            _lang_text('\n\nDüzeltip yeniden gönderebilirsiniz.', '\n\nYou can correct it and submit again.')
+    else:
+        flash(_lang_text('Geçersiz işlem.', 'Invalid action.'), 'danger')
+        return redirect(url_for('announcements_inbox', box='approvals'))
+
+    plan.decided_at = datetime.datetime.now()
+    plan.decided_by_id = advisor.id
+    db.session.add(Message(sender_id=advisor.id, recipient_id=student.id, subject=subject, body=body))
+    db.session.commit()
+    flash(_lang_text('Karar öğrenciye bildirildi.', 'The student has been notified.'), 'success')
+    return redirect(url_for('announcements_inbox', box='approvals'))
 
 
 @app.route('/admin/course-registration-window', methods=['GET', 'POST'])
@@ -4762,7 +5874,7 @@ def admin_course_registration_window():
         db.session.add(Course(
             code=code,
             title=(cls.name or 'Course')[:120],
-            credit=3,
+            credit=DEFAULT_COURSE_CREDIT, ects=DEFAULT_COURSE_ECTS,
             capacity=60,
             schedule_slot=None,
             teacher_id=cls.teacher_id,
@@ -4774,7 +5886,7 @@ def admin_course_registration_window():
 
     policy = CourseRegistrationPolicy.query.first()
     if not policy:
-        policy = CourseRegistrationPolicy(min_credits=0, max_credits=30, is_locked=False)
+        policy = CourseRegistrationPolicy(min_credits=0, max_credits=45, is_locked=False)
         db.session.add(policy)
         db.session.commit()
 
@@ -4791,10 +5903,10 @@ def admin_course_registration_window():
                 policy.add_drop_start = datetime.datetime.fromisoformat(start_raw) if start_raw else None
                 policy.add_drop_end = datetime.datetime.fromisoformat(end_raw) if end_raw else None
                 policy.min_credits = int(min_credits_raw or 0)
-                policy.max_credits = int(max_credits_raw or 30)
+                policy.max_credits = int(max_credits_raw or 45)
                 policy.is_locked = is_locked
                 if policy.max_credits < policy.min_credits:
-                    flash('Maksimum kredi, minimum krediden az olamaz.', 'warning')
+                    flash('Maksimum AKTS, minimum AKTS değerinden az olamaz.', 'warning')
                 else:
                     db.session.commit()
                     flash('Ders kayıt penceresi politikası güncellendi.', 'success')
@@ -4839,7 +5951,7 @@ def admin_course_registration_override():
     try:
         if action == 'add':
             if not enrollment:
-                db.session.add(CourseEnrollment(student_id=student.id, course_id=course.id))
+                db.session.add(CourseEnrollment(student_id=student.id, course_id=course.id, approved=True))
                 db.session.flush()
             db.session.add(CourseEnrollmentAudit(
                 actor_user_id=admin_user.id,
@@ -4893,7 +6005,7 @@ def student_transcript():
         for enrollment in enrollments:
             if not enrollment.grades:
                 continue
-            course_credit = enrollment.course.credit if enrollment.course and enrollment.course.credit else 0
+            course_credit = enrollment.course.ects if enrollment.course and enrollment.course.ects else 0
             if course_credit <= 0:
                 continue
             avg_grade_point = sum(g.grade_point for g in enrollment.grades) / len(enrollment.grades)
@@ -5048,7 +6160,7 @@ def create_class():
 
 # ------------------ START ATTENDANCE SESSION ------------------
 @app.route('/create_session', methods=['POST'])
-@role_required('teacher')
+@role_required(('teacher', 'assistant'))
 @permission_required()
 def create_session():
     class_id_raw = _normalize_form_text(request.form.get('class_id'), max_length=20)
@@ -5109,7 +6221,7 @@ def create_session():
 
 # ------------------ VIEW QR ------------------
 @app.route('/view_qr/<token>')
-@role_required('teacher')
+@role_required(('teacher', 'assistant'))
 @permission_required()
 def view_qr(token):
     # Token is the class-level fixed QR token.
@@ -5129,7 +6241,7 @@ def view_qr(token):
 
 # ------------------ CLASS DETAIL ------------------
 @app.route('/teacher/class/<int:class_id>')
-@role_required('teacher')
+@role_required(('teacher', 'assistant'))
 @permission_required()
 def class_detail(class_id):
     cls = Class.query.get_or_404(class_id)
@@ -5229,7 +6341,7 @@ def mark_attendance(token):
 
 # ------------------ UPDATE ATTENDANCE ------------------
 @app.route('/teacher/session/<int:session_id>/update_attendance', methods=['POST'])
-@role_required('teacher')
+@role_required(('teacher', 'assistant'))
 @permission_required()
 def update_attendance(session_id):
     session_obj = AttendanceSession.query.get_or_404(session_id)
@@ -5274,7 +6386,7 @@ def update_attendance(session_id):
 
 # ------------------ STOP ATTENDANCE SESSION ------------------
 @app.route('/teacher/session/<int:session_id>/stop')
-@role_required('teacher')
+@role_required(('teacher', 'assistant'))
 @permission_required()
 def stop_session(session_id):
     session_obj = AttendanceSession.query.get_or_404(session_id)
@@ -5306,7 +6418,13 @@ def handle_internal_error(error):
 
 # ------------------ RUN ------------------
 if __name__ == "__main__":
-    debug_mode = os.getenv('FLASK_DEBUG', '1') == '1'
+    debug_mode = os.getenv('FLASK_DEBUG', '0') == '1'
+    print("=" * 60)
+    print("QR Attendance app is starting...")
+    print("Open: http://127.0.0.1:5000/login")
+    print("Or: http://localhost:5000/login")
+    print(f"Debug mode: {debug_mode}")
+    print("=" * 60)
     app.run(debug=debug_mode, host='0.0.0.0', port=5000)
 
 

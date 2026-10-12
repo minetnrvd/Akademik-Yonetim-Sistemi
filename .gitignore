@@ -44,3 +44,10 @@ restore_drill/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Generated at startup (class QR codes)
+static/qrcodes/
+
+# Raw local screenshots (README uses screenshots/)
+screen_photos/
+uploads/

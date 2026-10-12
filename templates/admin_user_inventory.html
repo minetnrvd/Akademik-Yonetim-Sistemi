@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}{{ lang_text('Admin Kullanıcı Envanteri', 'Admin User Inventory') }}{% endblock %}
+{% block title %}{{ lang_text('Kullanıcı Listesi', 'User Inventory') }}{% endblock %}
 
 {% block content %}
+{% set role_labels = {'student': lang_text('Öğrenci', 'Student'), 'teacher': lang_text('Öğretmen', 'Teacher'), 'assistant': lang_text('Asistan', 'Assistant'), 'registrar': lang_text('Öğrenci İşleri', 'Student Affairs'), 'admin': lang_text('Admin', 'Admin')} %}
 <style>
     .inventory-shell {
         display: flex;
@@ -131,7 +132,7 @@
 
 <div class="inventory-shell">
     <div class="inventory-top">
-        <h1>{{ lang_text('Admin Kullanıcı Envanteri', 'Admin User Inventory') }}</h1>
+        <h1>{{ lang_text('Kullanıcı Listesi', 'User Inventory') }}</h1>
         <a href="{{ url_for('admin_dashboard') }}"><button type="button">{{ lang_text('← Admin Paneli', 'Back to Admin Dashboard') }}</button></a>
     </div>
 
@@ -142,6 +143,8 @@
             <option value="" {% if not filters.role %}selected{% endif %}>{{ lang_text('Tüm roller', 'All roles') }}</option>
             <option value="student" {% if filters.role == 'student' %}selected{% endif %}>{{ lang_text('Öğrenci', 'Student') }}</option>
             <option value="teacher" {% if filters.role == 'teacher' %}selected{% endif %}>{{ lang_text('Öğretmen', 'Teacher') }}</option>
+            <option value="assistant" {% if filters.role == 'assistant' %}selected{% endif %}>{{ lang_text('Asistan', 'Assistant') }}</option>
+            <option value="registrar" {% if filters.role == 'registrar' %}selected{% endif %}>{{ lang_text('Öğrenci İşleri', 'Student Affairs') }}</option>
             <option value="admin" {% if filters.role == 'admin' %}selected{% endif %}>{{ lang_text('Admin', 'Admin') }}</option>
         </select>
         <input type="text" name="q" value="{{ filters.q }}" placeholder="{{ lang_text('Ad/e-posta ile ara', 'Search by name/email') }}">
@@ -182,8 +185,11 @@
                     <th>{{ lang_text('Hesap Durumu', 'Account Status') }}</th>
                     <th>{{ lang_text('Öğretmen Ders Sayısı', 'Teacher Class Count') }}</th>
                     <th>{{ lang_text('Öğrenci Profili', 'Student Profile') }}</th>
+                    <th>{{ lang_text('Danışman', 'Advisor') }}</th>
+                    {% if can_manage_accounts %}
                     <th>{{ lang_text('Rol Güncelle', 'Role Update') }}</th>
                     <th>{{ lang_text('Kilit', 'Lock Action') }}</th>
+                    {% endif %}
                     <th>{{ lang_text('Şifre Sıfırla', 'Password Reset') }}</th>
                 </tr>
             </thead>
@@ -194,10 +200,32 @@
                             <td>{{ user.id }}</td>
                             <td>{{ user.name }}</td>
                             <td>{{ user.email }}</td>
-                            <td>{{ user.role }}</td>
+                            <td>{{ role_labels.get(user.role, user.role) }}</td>
                             <td>{{ lang_text('Kilitli', 'Locked') if user.is_locked else lang_text('Aktif', 'Active') }}</td>
                             <td>{{ user.teacher_class_count }}</td>
                             <td>{{ lang_text('Var', 'Yes') if user.student_profile_exists else lang_text('Yok', 'No') }}</td>
+                            <td>
+                                {% if not user.student_profile_exists %}
+                                    <span>-</span>
+                                {% elif can_manage_accounts %}
+                                    <form method="post" action="{{ url_for('admin_set_student_advisor', user_id=user.id) }}" class="role-update-form">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <select name="advisor_id">
+                                            <option value="">{{ lang_text('Bölüm danışmanı (otomatik)', 'Department advisor (auto)') }}</option>
+                                            {% for teacher in advisor_options %}
+                                                <option value="{{ teacher.id }}" {% if teacher.id == user.own_advisor_id %}selected{% endif %}>{{ teacher.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit">{{ lang_text('Güncelle', 'Update') }}</button>
+                                    </form>
+                                {% endif %}
+                                <small>
+                                    {% if user.advisor_name %}
+                                        {{ user.advisor_name }}{% if user.advisor_source == 'group' %} · {{ lang_text('bölüm', 'dept.') }} {{ user.advisor_group }}{% else %} · {{ lang_text('özel', 'individual') }}{% endif %}
+                                    {% else %}{{ lang_text('Danışman yok', 'No advisor') }}{% endif %}
+                                </small>
+                            </td>
+                            {% if can_manage_accounts %}
                             <td>
                                 {% if user.id == current_admin_user_id %}
                                     <span>{{ lang_text('İzin verilmez (kendiniz)', 'Not allowed (self)') }}</span>
@@ -206,7 +234,7 @@
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <select name="role">
                                             {% for role in role_options %}
-                                                <option value="{{ role }}" {% if role == user.role %}selected{% endif %}>{{ role }}</option>
+                                                <option value="{{ role }}" {% if role == user.role %}selected{% endif %}>{{ role_labels.get(role, role) }}</option>
                                             {% endfor %}
                                         </select>
                                         <button type="submit">{{ lang_text('Güncelle', 'Update') }}</button>
@@ -224,9 +252,12 @@
                                     </form>
                                 {% endif %}
                             </td>
+                            {% endif %}
                             <td>
                                 {% if user.id == current_admin_user_id %}
                                     <span>{{ lang_text('İzin verilmez (kendiniz)', 'Not allowed (self)') }}</span>
+                                {% elif not can_manage_accounts and user.role != 'student' %}
+                                    <span>{{ lang_text('Yalnızca admin', 'Admin only') }}</span>
                                 {% else %}
                                     <form method="post" action="{{ url_for('admin_reset_user_password', user_id=user.id) }}" class="role-update-form">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -240,7 +271,7 @@
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="10">{{ lang_text('Mevcut filtre için kullanıcı bulunamadı.', 'No user found for current filter.') }}</td>
+                        <td colspan="11">{{ lang_text('Mevcut filtre için kullanıcı bulunamadı.', 'No user found for current filter.') }}</td>
                     </tr>
                 {% endif %}
             </tbody>

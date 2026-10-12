@@ -1,12 +1,9 @@
 ﻿<!DOCTYPE html>
-<html lang="{{ current_lang }}">
+<html lang="{{ current_lang }}" data-theme="academic" data-mode="system">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ t('site_title') }}{% endblock %}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
@@ -387,44 +384,184 @@
             }
         }
     </style>
+    <script>
+        // Apply the saved colour mode before first paint (light | dark | system).
+        (function () {
+            var mode = 'system';
+            try { mode = localStorage.getItem('ams-theme') || 'system'; } catch (e) {}
+            if (['light', 'dark', 'system'].indexOf(mode) === -1) mode = 'system';
+            document.documentElement.setAttribute('data-mode', mode);
+        })();
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme/fonts.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme/academic.css') }}">
 </head>
-<body>
+{% set show_top_nav = nav_role and request.endpoint not in ('login', 'register') %}
+<body{% if show_top_nav %} class="has-topnav"{% endif %}>
 
 <a class="skip-link" href="#main-content">{{ t('skip_to_content') }}</a>
 
 <div class="container">
 
     <div class="topbar">
-        <div class="lang-box">
-            <label for="lang-select">{{ t('language') }}</label>
-            <form method="post" action="{{ url_for('set_language') }}">
-                <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
-                <select id="lang-select" name="lang" onchange="this.form.submit()">
-                    <option value="en" {% if current_lang == 'en' %}selected{% endif %}>{{ t('english') }}</option>
-                    <option value="tr" {% if current_lang == 'tr' %}selected{% endif %}>{{ t('turkish') }}</option>
-                </select>
-            </form>
-        </div>
+        <div class="pv-prefs">{% include '_prefs.html' %}</div>
     </div>
+
+    {% if show_top_nav %}{% include '_topnav.html' %}{% endif %}
+
+    {% if session.get('view_as_origin') and not view_as_can_edit %}
+    <div class="view-as-banner" role="status" style="display:flex;gap:1rem;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:.75rem 0;padding:.6rem 1rem;border-radius:10px;background:#fff4d6;color:#5c4400;border:1px solid #e8c766;">
+        <span><strong>{{ session.get('view_as_name') }}</strong>: {{ lang_text('Bu öğrencinin danışmanı değilsin; yalnızca görüntüleyebilirsin.', 'You are not this student\'s advisor; you can only view.') }}</span>
+        <form method="post" action="{{ url_for('view_as_student_exit') }}" style="margin:0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="mb-btn">{{ lang_text('Öğrenci görünümünden çık', 'Exit student view') }}</button>
+        </form>
+    </div>
+    {% endif %}
 
     <!-- FLASH MESSAGES -->
     {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
+        {% set inline_messages = [] %}
+        {% for category, message in messages if not category.startswith('popup-') %}{% set _ = inline_messages.append((category, message)) %}{% endfor %}
+        {% if inline_messages %}
             <section aria-live="polite" aria-atomic="true">
-            {% for category, message in messages %}
+            {% for category, message in inline_messages %}
                 <div class="alert {{ category }}">
                     {{ message }}
                 </div>
             {% endfor %}
             </section>
         {% endif %}
+        {# flash(msg, 'popup-success') shows a centred notice dialog instead of an inline alert. #}
+        {% for category, message in messages if category.startswith('popup-') %}
+            <dialog class="app-dialog app-notice app-notice-{{ category[6:] }}" data-autoshow aria-labelledby="app-notice-title-{{ loop.index }}">
+                <form method="dialog">
+                    <div class="app-notice-icon" aria-hidden="true">{% if category == 'popup-success' %}✓{% else %}!{% endif %}</div>
+                    <h2 id="app-notice-title-{{ loop.index }}">{% if category == 'popup-success' %}{{ lang_text('İşlem tamamlandı', 'Done') }}{% else %}{{ lang_text('Bilgi', 'Notice') }}{% endif %}</h2>
+                    <p>{{ message }}</p>
+                    <div class="app-dialog-actions"><button value="ok" class="app-dialog-ok" autofocus>{{ lang_text('Tamam', 'OK') }}</button></div>
+                </form>
+            </dialog>
+        {% endfor %}
     {% endwith %}
 
     <main id="main-content">
+        {% if session.get('view_as_origin') %}
+        {% macro va_link(endpoint, label) -%}
+        <a href="{{ url_for(endpoint) }}" {% if request.endpoint == endpoint %}aria-current="page"{% endif %}>{{ label }}</a>
+        {%- endmacro %}
+        <div class="va-layout">
+            <aside class="va-sidebar" aria-label="{{ lang_text('Öğrenci menüsü', 'Student menu') }}">
+                <a class="va-back" href="{{ url_for('teacher_advisees') }}">&larr; {{ lang_text('Öğrenci listesine dön', 'Back to student list') }}</a>
+                {% if view_as_profile %}
+                {% set p = view_as_profile %}
+                <div class="va-card">
+                    {% if p.has_photo %}
+                    <img class="va-photo" src="{{ url_for('student_photo', student_id=session.get('user_id')) }}" alt="{{ p.name }}">
+                    {% else %}
+                    <div class="va-photo va-initials" aria-hidden="true">{{ p.initials }}</div>
+                    {% endif %}
+                    <div class="va-student">{{ p.name }}</div>
+                    <dl class="va-facts">
+                        <dt>{{ lang_text('Öğrenci No', 'Student No') }}</dt><dd>{{ p.student_number }}</dd>
+                        <dt>{{ lang_text('E-posta', 'E-mail') }}</dt><dd>{{ p.email }}</dd>
+                        <dt>{{ lang_text('Fakülte', 'Faculty') }}</dt><dd>{{ p.faculty }}</dd>
+                        <dt>{{ lang_text('Bölüm', 'Department') }}</dt><dd>{{ p.department }}</dd>
+                        <dt>{{ lang_text('Sınıf', 'Year') }}</dt><dd>{{ p.class_level }}</dd>
+                        <dt>{{ lang_text('Eğitim dönemi', 'Academic period') }}</dt><dd>{{ p.period }}</dd>
+                        <dt>{{ lang_text('Danışman', 'Advisor') }}</dt><dd>{{ p.advisor }}</dd>
+                    </dl>
+                </div>
+                {% endif %}
+                <div class="va-group">{{ lang_text('Akademik', 'Academic') }}</div>
+                {{ va_link('student_term_courses', t('term_courses')) }}
+                {{ va_link('student_transcript', t('transcript')) }}
+                {{ va_link('student_exams', t('exams')) }}
+                {{ va_link('student_academic_calendar', t('academic_calendar')) }}
+                {{ va_link('student_absence', t('absence')) }}
+                {{ va_link('reports', lang_text('Raporlar', 'Reports')) }}
+                <div class="va-group">{{ lang_text('Kişisel Bilgiler', 'Personal Info') }}</div>
+                {{ va_link('student_identity_info', t('identity_information')) }}
+                {{ va_link('student_education_info', t('education_information')) }}
+                {{ va_link('student_family_info', t('family_information')) }}
+                {{ va_link('student_documents_info', t('documents')) }}
+                {{ va_link('student_contact_info', t('contact')) }}
+            </aside>
+            <div class="va-content">
+        {% endif %}
         {% block content %}{% endblock %}
+        {% if session.get('view_as_origin') %}
+            </div>
+        </div>
+        <script>
+            // Read-only view: the server blocks writes; also grey out the controls.
+            document.querySelectorAll('.va-content form{% if view_as_can_edit %}:not([action*="term-courses/update"]):not([action*="term-plan/approve"]){% endif %} button, .va-content form{% if view_as_can_edit %}:not([action*="term-courses/update"]):not([action*="term-plan/approve"]){% endif %} input:not([type=hidden]), .va-content form{% if view_as_can_edit %}:not([action*="term-courses/update"]):not([action*="term-plan/approve"]){% endif %} select, .va-content form{% if view_as_can_edit %}:not([action*="term-courses/update"]):not([action*="term-plan/approve"]){% endif %} textarea')
+                .forEach(function (el) { el.disabled = true; });
+        </script>
+        <style>
+            .va-layout { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+            .va-sidebar { position: sticky; top: 1rem; display: flex; flex-direction: column; gap: .15rem; padding: .75rem; border-radius: 12px; background: var(--pv-surface, #fff); border: 1px solid var(--pv-border, #dfe3ea); }
+            .va-sidebar a { padding: .5rem .7rem; border-radius: 8px; color: inherit; text-decoration: none; font-weight: 500; }
+            .va-sidebar a:hover { background: rgba(27, 59, 99, .08); }
+            .va-sidebar a[aria-current="page"] { background: #1b3b63; color: #fff; }
+            .va-sidebar a.va-back { margin-bottom: .5rem; border: 1px solid var(--pv-border, #dfe3ea); text-align: center; font-weight: 600; }
+            .va-card { padding: .25rem .5rem .75rem; margin-bottom: .5rem; border-bottom: 1px solid var(--pv-border, #dfe3ea); text-align: center; }
+            .va-photo { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; display: block; margin: .25rem auto .5rem; }
+            .va-initials { display: flex; align-items: center; justify-content: center; background: #1b3b63; color: #fff; font-size: 1.8rem; font-weight: 700; }
+            .va-student { font-weight: 700; padding: 0 .2rem .4rem; }
+            .va-facts { margin: 0; text-align: left; font-size: .82rem; display: grid; gap: .1rem; }
+            .va-facts dt { opacity: .6; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; margin-top: .35rem; }
+            .va-facts dd { margin: 0; overflow-wrap: anywhere; }
+            .va-group { margin-top: .6rem; padding: .25rem .7rem; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; opacity: .65; }
+            @media (max-width: 800px) { .va-layout { grid-template-columns: 1fr; } .va-sidebar { position: static; } }
+        </style>
+        {% endif %}
     </main>
 
 </div>
+
+<!-- Site-wide confirmation dialog: add data-confirm="message" to a form instead of using confirm(). -->
+<dialog id="app-confirm" class="app-dialog" aria-labelledby="app-confirm-title">
+    <form method="dialog">
+        <h2 id="app-confirm-title">{{ lang_text('Emin misiniz?', 'Are you sure?') }}</h2>
+        <p id="app-confirm-message"></p>
+        <div class="app-dialog-actions">
+            <button value="cancel" class="app-dialog-cancel">{{ lang_text('Vazgeç', 'Cancel') }}</button>
+            <button value="ok" class="app-dialog-ok" autofocus>{{ lang_text('Onayla', 'Confirm') }}</button>
+        </div>
+    </form>
+</dialog>
+<script>
+    (function () {
+        var dialog = document.getElementById('app-confirm');
+        if (!dialog || typeof dialog.showModal !== 'function') return;  // old browsers: submit without asking
+        document.addEventListener('submit', function (event) {
+            var form = event.target;
+            if (!form.dataset || !form.dataset.confirm) return;
+            if (form.dataset.confirmed === '1') { form.dataset.confirmed = ''; return; }
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            document.getElementById('app-confirm-message').textContent = form.dataset.confirm;
+            dialog.returnValue = '';
+            dialog.showModal();
+            dialog.addEventListener('close', function onClose() {
+                dialog.removeEventListener('close', onClose);
+                if (dialog.returnValue === 'ok') {
+                    form.dataset.confirmed = '1';
+                    form.requestSubmit ? form.requestSubmit() : form.submit();
+                }
+            });
+        }, true);
+        dialog.addEventListener('click', function (event) {
+            if (event.target === dialog) dialog.close('cancel');  // click on the backdrop
+        });
+        // Popup flash notices (flash(..., 'popup-*')): open on page load, close on OK or backdrop click.
+        document.querySelectorAll('dialog[data-autoshow]').forEach(function (notice) {
+            notice.addEventListener('click', function (event) { if (event.target === notice) notice.close(); });
+            notice.showModal();
+        });
+    })();
+</script>
 
 <!-- Auto close in 3 seconds -->
 <script>
@@ -436,6 +573,25 @@
             });
         }, 3000);
     }
+</script>
+
+<script>
+    // Keep every theme switch in sync with the active mode and persist changes.
+    (function () {
+        var buttons = document.querySelectorAll('[data-mode-value]');
+        function show(mode) {
+            buttons.forEach(function (b) { b.setAttribute('aria-checked', b.getAttribute('data-mode-value') === mode ? 'true' : 'false'); });
+        }
+        show(document.documentElement.getAttribute('data-mode') || 'system');
+        buttons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                var mode = button.getAttribute('data-mode-value');
+                document.documentElement.setAttribute('data-mode', mode);
+                try { localStorage.setItem('ams-theme', mode); } catch (e) {}
+                show(mode);
+            });
+        });
+    })();
 </script>
 
 </body>

@@ -3,6 +3,7 @@
 {% block title %}{{ lang_text('Sistem Sağlık Durumu', 'Health Status') }}{% endblock %}
 
 {% block content %}
+{% include '_audit_tabs.html' %}
 <style>
     .health-shell {
         display: flex;
@@ -91,7 +92,7 @@
 
 <div class="health-shell">
     <div class="health-top">
-        <h1>{{ lang_text('Sistem Sağlık Durumu', 'Health Status') }}</h1>
+        <h2 class="audit-section-title">{{ lang_text('Sistem Sağlık Durumu', 'Health Status') }}</h2>
         <a href="{{ url_for('admin_dashboard') }}"><button type="button">← {{ lang_text('Admin Paneli', 'Admin Dashboard') }}</button></a>
     </div>
 

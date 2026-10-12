@@ -1,0 +1,21 @@
+# Web framework
+Flask==3.1.3
+Werkzeug==3.1.6
+
+# Database
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.48
+alembic==1.18.4
+
+# QR code generation
+qrcode==8.2
+pillow==12.1.1
+
+# Tests
+pytest==9.0.2
+
+# PostgreSQL driver
+psycopg2-binary==2.9.11
+
+# Excel import (department groups)
+openpyxl==3.1.5

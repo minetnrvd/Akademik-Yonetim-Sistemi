@@ -24,9 +24,18 @@ class User(db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), nullable=False, index=True)  # student, teacher, admin
     is_locked = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    # Last time the user opened the announcement inbox; newer announcements count as unread.
+    announcements_seen_at = db.Column(db.DateTime, nullable=True)
+    # Teacher profile (shown on the teacher dashboard, edited on the account page).
+    academic_title = db.Column(db.String(60), nullable=True)   # e.g. Prof. Dr.
+    faculty = db.Column(db.String(140), nullable=True)
+    department = db.Column(db.String(140), nullable=True)
+    office = db.Column(db.String(80), nullable=True)
+    office_hours = db.Column(db.String(160), nullable=True)
+    photo_filename = db.Column(db.String(120), nullable=True)
 
     # Student profile relationship.
-    students = db.relationship('Student', backref='user', lazy=True)
+    students = db.relationship('Student', backref='user', lazy=True, foreign_keys='Student.id')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -79,11 +88,55 @@ class Student(db.Model):
     highschool_name = db.Column(db.String(160), nullable=True)
     highschool_info = db.Column(db.String(200), nullable=True)
     highschool_graduation_date = db.Column(db.Date, nullable=True)
+    # Academic advisor (a teacher), assigned by admin.
+    advisor_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+    # Profile photo (re-encoded JPEG under uploads/student_photos, served through student_photo).
+    photo_filename = db.Column(db.String(120), nullable=True)
+
+    advisor = db.relationship('User', foreign_keys=[advisor_id], backref='advisees')
+
+    def advisor_info(self):
+        """(advisor User or None, 'student'|'group'|None, group code or None).
+        A student's own advisor wins; otherwise the first department group that has one."""
+        if self.advisor is not None:
+            return self.advisor, 'student', None
+        for group in sorted(self.groups, key=lambda g: g.code or ''):
+            if group.advisor is not None:
+                return group.advisor, 'group', group.code
+        return None, None, None
 
     # Classes taken by the student (many-to-many).
     classes = db.relationship('Class', secondary=student_classes, back_populates='students')
 
 # ------------------ CLASS MODEL ------------------
+# Teaching assistants of a class (assigned by the class's teacher).
+class_assistants = db.Table('class_assistants',
+    db.Column('class_id', db.Integer, db.ForeignKey('classes.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+)
+
+
+# Department groups (e.g. CMP, SWE): a student can belong to several.
+student_group_members = db.Table('student_group_members',
+    db.Column('group_id', db.Integer, db.ForeignKey('student_groups.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('student_id', db.Integer, db.ForeignKey('students.id', ondelete='CASCADE'), primary_key=True),
+)
+
+
+class StudentGroup(db.Model):
+    __tablename__ = 'student_groups'
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(20), unique=True, nullable=False)  # e.g. CMP
+    name = db.Column(db.String(120), nullable=False)  # e.g. Bilgisayar Mühendisliği
+    created_at = db.Column(db.DateTime, default=_utc_now_naive)
+    # Department advisor: advises every member that has no advisor of their own.
+    advisor_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+    advisor = db.relationship('User', foreign_keys=[advisor_id])
+
+    students = db.relationship('Student', secondary=student_group_members, lazy=True,
+                               backref=db.backref('groups', lazy=True))
+
+
 class Class(db.Model):
     __tablename__ = 'classes'
     id = db.Column(db.Integer, primary_key=True)
@@ -99,6 +152,8 @@ class Class(db.Model):
 
     # Teacher relationship
     teacher = db.relationship('User', backref='teacher_classes')
+    assistants = db.relationship('User', secondary=class_assistants, lazy=True,
+                                 backref=db.backref('assisted_classes', lazy=True))
 
     # Attendance sessions
     sessions = db.relationship('AttendanceSession', backref='class_obj', lazy=True)
@@ -165,12 +220,19 @@ class AcademicTerm(db.Model):
     courses = db.relationship('Course', backref='term', lazy=True)
 
 
+# Two load measures, as at Turkish universities: national credit (kredi, from weekly hours, usually 3-4)
+# and ECTS (AKTS, student workload: ~30 per term, typically 5-8 per course). Limits and GPA use ECTS.
+DEFAULT_COURSE_CREDIT = 3
+DEFAULT_COURSE_ECTS = 6
+
+
 class Course(db.Model):
     __tablename__ = 'courses'
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(30), nullable=False, unique=True)  # e.g. CENG101
     title = db.Column(db.String(120), nullable=False)
-    credit = db.Column(db.Integer, nullable=False, default=3)
+    credit = db.Column(db.Integer, nullable=False, default=DEFAULT_COURSE_CREDIT)  # national credit (kredi)
+    ects = db.Column(db.Integer, nullable=False, default=DEFAULT_COURSE_ECTS, server_default="6")  # AKTS
     capacity = db.Column(db.Integer, nullable=False, default=60)
     schedule_slot = db.Column(db.String(80), nullable=True)  # e.g. Mon-09:00-11:00
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
@@ -187,6 +249,8 @@ class CourseEnrollment(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=_utc_now_naive)
+    # Official only once the advisor approves the term plan; teacher-side lists show approved rows only.
+    approved = db.Column(db.Boolean, nullable=False, default=False, server_default=db.true())
 
     student = db.relationship('Student', backref='course_enrollments')
     grades = db.relationship('GradeRecord', backref='enrollment', lazy=True, cascade='all, delete-orphan')
@@ -196,6 +260,25 @@ class CourseEnrollment(db.Model):
     )
 
 
+class TermPlan(db.Model):
+    """A student's course selection for the term and its advisor approval state.
+
+    draft/rejected: the student edits and submits; pending: locked, waiting for the advisor;
+    approved: the enrollments are official. The advisor may edit at any time.
+    """
+    __tablename__ = 'term_plans'
+    id = db.Column(db.Integer, primary_key=True)
+    student_id = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False, unique=True)
+    status = db.Column(db.String(20), nullable=False, default='draft', index=True)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    decided_at = db.Column(db.DateTime, nullable=True)
+    decided_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    rejection_reason = db.Column(db.String(500), nullable=True)
+
+    student = db.relationship('Student', backref=db.backref('term_plan', uselist=False))
+    decided_by = db.relationship('User', foreign_keys=[decided_by_id])
+
+
 class GradeRecord(db.Model):
     __tablename__ = 'grade_records'
     id = db.Column(db.Integer, primary_key=True)
@@ -203,6 +286,8 @@ class GradeRecord(db.Model):
     assessment_name = db.Column(db.String(120), nullable=False)  # Midterm, Final, Quiz 1 ...
     letter_grade = db.Column(db.String(2), nullable=False)  # AA, BA, ... FF
     grade_point = db.Column(db.Float, nullable=False)
+    entered_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # teacher or assistant
+    entered_by = db.relationship('User', foreign_keys=[entered_by_id])
     created_at = db.Column(db.DateTime, default=_utc_now_naive)
 
     @staticmethod
@@ -216,7 +301,7 @@ class CourseRegistrationPolicy(db.Model):
     add_drop_start = db.Column(db.DateTime, nullable=True)
     add_drop_end = db.Column(db.DateTime, nullable=True)
     min_credits = db.Column(db.Integer, nullable=False, default=0)
-    max_credits = db.Column(db.Integer, nullable=False, default=30)
+    max_credits = db.Column(db.Integer, nullable=False, default=45)
     is_locked = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=_utc_now_naive)
     updated_at = db.Column(db.DateTime, default=_utc_now_naive, onupdate=_utc_now_naive)
@@ -245,11 +330,13 @@ class Announcement(db.Model):
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     target_role = db.Column(db.String(20), nullable=True)  # student, teacher, all
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('student_groups.id'), nullable=True)  # department group audience
     starts_at = db.Column(db.DateTime, nullable=True)
     ends_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=_utc_now_naive)
 
     author = db.relationship('User', backref='announcements_authored')
+    group = db.relationship('StudentGroup')
 
 
 class Message(db.Model):

@@ -1,3 +1,4 @@
+import secrets
 import unittest
 import os
 import datetime
@@ -875,7 +876,7 @@ class AdminIntegrationRouteTests(unittest.TestCase):
 
         inventory_response = client.get('/admin/users', follow_redirects=False)
         self.assertEqual(inventory_response.status_code, 200)
-        self.assertIn(b'Admin User Inventory', inventory_response.data)
+        self.assertIn(b'User Inventory', inventory_response.data)
 
         operation_audit_response = client.get('/admin/security/admin-operations', follow_redirects=False)
         self.assertEqual(operation_audit_response.status_code, 200)
@@ -1087,27 +1088,356 @@ class AdminIntegrationRouteTests(unittest.TestCase):
 
         notify_response = client.get('/admin/notifications', follow_redirects=False)
         self.assertEqual(notify_response.status_code, 200)
-        self.assertIn(b'Email Notifications', notify_response.data)
+        self.assertIn(b'New Announcement', notify_response.data)
 
-    def test_admin_notifications_send_test_rejects_invalid_email(self):
+    def test_admin_compose_announcement_and_email_redirects_to_sent_box(self):
         with app.app_context():
             fixture = self._seed_admin_fixture()
 
+        old_dry_run = app.config.get('EMAIL_DRY_RUN', True)
+        app.config['EMAIL_DRY_RUN'] = True
+        try:
+            client = self._admin_client(fixture['actor_admin_id'])
+            response = client.post(
+                '/admin/notifications',
+                data=self._csrf_payload(
+                    {
+                        'action': 'compose',
+                        'channel': 'both',
+                        'announcement_target_role': 'student',
+                        'announcement_title': 'Compose Notice',
+                        'announcement_body': 'Published and e-mailed.',
+                        'max_recipients': '5',
+                    }
+                ),
+                follow_redirects=False,
+            )
+        finally:
+            app.config['EMAIL_DRY_RUN'] = old_dry_run
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/announcements', response.headers['Location'])
+        self.assertIn('box=sent', response.headers['Location'])
+        with app.app_context():
+            announcement = Announcement.query.filter_by(title='Compose Notice').order_by(Announcement.id.desc()).first()
+            self.assertIsNotNone(announcement)
+            self.assertEqual(announcement.target_role, 'student')
+            self.assertEqual(announcement.author_id, fixture['actor_admin_id'])
+
+
+    def test_admin_can_manage_department_group_members_and_import_csv(self):
+        from io import BytesIO
+        from models import StudentGroup
+
+        with app.app_context():
+            fixture = self._seed_admin_fixture()
+            student_number = db.session.get(Student, fixture['target_student_id']).student_number
+        code = f'G{secrets.token_hex(3).upper()}'
         client = self._admin_client(fixture['actor_admin_id'])
-        response = client.post(
-            '/admin/notifications',
-            data=self._csrf_payload(
-                {
-                    'action': 'send_test',
-                    'test_email': 'not-an-email',
-                    'subject': 'T',
-                    'body': 'B',
-                }
-            ),
-            follow_redirects=False,
-        )
+
+        response = client.post('/admin/groups', data=self._csrf_payload({'action': 'create_group', 'code': code, 'name': 'Test Department'}))
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            group_id = StudentGroup.query.filter_by(code=code).one().id
+
+        client.post('/admin/groups', data=self._csrf_payload({'action': 'add_member', 'group_id': str(group_id), 'student': f'{student_number} — Target'}))
+        with app.app_context():
+            self.assertEqual([s.id for s in db.session.get(StudentGroup, group_id).students], [fixture['target_student_id']])
+
+        csv_bytes = f'Öğrenci No;Ad Soyad\n{student_number};Target\nNOPE-{code};Missing\n'.encode('utf-8')
+        payload = self._csrf_payload({'action': 'import_members', 'group_id': str(group_id)})
+        payload['file'] = (BytesIO(csv_bytes), 'members.csv')
+        response = client.post('/admin/groups', data=payload, content_type='multipart/form-data', follow_redirects=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'Email Notifications', response.data)
+        self.assertIn(b'1 already members, 1 not found', response.data)
+
+        client.post('/admin/groups', data=self._csrf_payload({'action': 'remove_member', 'group_id': str(group_id), 'student_id': str(fixture['target_student_id'])}))
+        with app.app_context():
+            self.assertEqual(db.session.get(StudentGroup, group_id).students, [])
+
+        client.post('/admin/groups', data=self._csrf_payload({'action': 'delete_group', 'group_id': str(group_id)}))
+        with app.app_context():
+            self.assertIsNone(db.session.get(StudentGroup, group_id))
+
+    def test_group_announcement_reaches_only_group_members(self):
+        from models import StudentGroup
+        from app import _announcements_for_user
+
+        with app.app_context():
+            fixture = self._seed_admin_fixture()
+            token = secrets.token_hex(4)
+            outsider = User(name=f'Outsider {token}', email=f'outsider.{token}@example.com', role='student')
+            outsider.set_password('x' * 12)
+            db.session.add(outsider)
+            db.session.flush()
+            db.session.add(Student(id=outsider.id, student_number=f'OUT-{token}'))
+            group = StudentGroup(code=f'G{token.upper()[:6]}', name='Visibility Group')
+            group.students.append(db.session.get(Student, fixture['target_student_id']))
+            db.session.add(group)
+            db.session.commit()
+            group_id, outsider_id = group.id, outsider.id
+
+        client = self._admin_client(fixture['actor_admin_id'])
+        client.post('/admin/notifications', data=self._csrf_payload({
+            'action': 'compose', 'channel': 'announcement', 'announcement_target_role': 'all',
+            'announcement_group_id': str(group_id), 'announcement_title': f'Group only {group_id}',
+            'announcement_body': 'Only for the department.',
+        }))
+
+        with app.app_context():
+            announcement = Announcement.query.filter_by(title=f'Group only {group_id}').one()
+            self.assertEqual(announcement.group_id, group_id)
+
+            def visible_to(user_id, role):
+                user = db.session.get(User, user_id)
+                return announcement.id in {a.id for a in _announcements_for_user(user, role, include_expired=True).all()}
+
+            self.assertTrue(visible_to(fixture['target_student_id'], 'student'))
+            self.assertFalse(visible_to(outsider_id, 'student'))
+            self.assertFalse(visible_to(fixture['target_teacher_id'], 'teacher'))
+
+
+    def _registrar_client(self):
+        """Create a Student Affairs user and a logged-in client for it."""
+        with app.app_context():
+            token = secrets.token_hex(4)
+            registrar = User(name=f'Registrar {token}', email=f'registrar.{token}@example.com', role='registrar')
+            registrar.set_password('x' * 12)
+            db.session.add(registrar)
+            db.session.commit()
+            registrar_id = registrar.id
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess['user_id'] = registrar_id
+            sess['role'] = 'registrar'
+            sess['_csrf_token'] = 'test-csrf-token'
+        return client, registrar_id
+
+    def test_registrar_reaches_only_student_affairs_pages(self):
+        client, _ = self._registrar_client()
+        for url in ('/registrar/dashboard', '/admin/groups', '/admin/notifications', '/admin/users', '/registrar/account', '/announcements'):
+            self.assertEqual(client.get(url).status_code, 200, url)
+
+        users_page = client.get('/admin/users').get_data(as_text=True)
+        self.assertNotIn('admin_update_user_role', users_page)
+        self.assertNotIn('/role"', users_page)
+
+        for url in ('/admin/dashboard', '/admin/class-assignments', '/admin/course-registration-window',
+                    '/admin/security/health-status', '/admin/security/permission-matrix', '/admin/account'):
+            self.assertIn(client.get(url).status_code, (302, 403), url)
+
+    def test_registrar_resets_only_student_passwords(self):
+        with app.app_context():
+            fixture = self._seed_admin_fixture()
+        client, _ = self._registrar_client()
+        new_password = 'Reset-Pass-2026!'
+
+        client.post(f"/admin/users/{fixture['target_student_id']}/password",
+                    data=self._csrf_payload({'new_password': new_password, 'confirm_password': new_password}))
+        client.post(f"/admin/users/{fixture['target_teacher_id']}/password",
+                    data=self._csrf_payload({'new_password': new_password, 'confirm_password': new_password}))
+
+        with app.app_context():
+            self.assertTrue(db.session.get(User, fixture['target_student_id']).check_password(new_password))
+            self.assertFalse(db.session.get(User, fixture['target_teacher_id']).check_password(new_password))
+
+        role_change = client.post(f"/admin/users/{fixture['target_student_id']}/role",
+                                  data=self._csrf_payload({'role': 'teacher'}))
+        self.assertIn(role_change.status_code, (302, 403))
+        with app.app_context():
+            self.assertEqual(db.session.get(User, fixture['target_student_id']).role, 'student')
+
+    def test_registrar_can_only_change_own_announcements(self):
+        with app.app_context():
+            fixture = self._seed_admin_fixture()
+            admin_note = Announcement(title=f'Admin note {secrets.token_hex(3)}', body='Body', author_id=fixture['actor_admin_id'], target_role='all')
+            db.session.add(admin_note)
+            db.session.commit()
+            admin_note_id = admin_note.id
+        client, registrar_id = self._registrar_client()
+
+        client.post('/admin/notifications', data=self._csrf_payload({
+            'action': 'delete_announcement', 'announcement_id': str(admin_note_id), 'return_to': 'inbox'}))
+        with app.app_context():
+            self.assertIsNotNone(db.session.get(Announcement, admin_note_id))
+
+        client.post('/admin/notifications', data=self._csrf_payload({
+            'action': 'compose', 'channel': 'announcement', 'announcement_target_role': 'student',
+            'announcement_title': f'Registrar note {registrar_id}', 'announcement_body': 'From Student Affairs.'}))
+        with app.app_context():
+            own = Announcement.query.filter_by(title=f'Registrar note {registrar_id}').one()
+            self.assertEqual(own.author_id, registrar_id)
+            own_id = own.id
+
+        client.post('/admin/notifications', data=self._csrf_payload({
+            'action': 'delete_announcement', 'announcement_id': str(own_id), 'return_to': 'inbox'}))
+        with app.app_context():
+            self.assertIsNone(db.session.get(Announcement, own_id))
+
+
+    def test_every_role_is_an_announcement_audience(self):
+        from app import ROLE_DASHBOARDS
+
+        with app.app_context():
+            fixture = self._seed_admin_fixture()
+        client = self._admin_client(fixture['actor_admin_id'])
+        page = client.get('/admin/notifications').get_data(as_text=True)
+        for role in ROLE_DASHBOARDS:
+            self.assertIn(f'<option value="{role}"', page)
+
+        title = f'For student affairs {secrets.token_hex(3)}'
+        client.post('/admin/notifications', data=self._csrf_payload({
+            'action': 'compose', 'channel': 'announcement', 'announcement_target_role': 'registrar',
+            'announcement_title': title, 'announcement_body': 'Staff only.'}))
+        with app.app_context():
+            self.assertEqual(Announcement.query.filter_by(title=title).one().target_role, 'registrar')
+
+
+    def _student_client(self, student_user_id):
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess['user_id'] = student_user_id
+            sess['role'] = 'student'
+            sess['_csrf_token'] = 'test-csrf-token'
+        return client
+
+    def test_personal_message_reaches_recipient_and_can_be_answered(self):
+        from models import Message
+        from app import _unread_announcement_count
+
+        with app.app_context():
+            fixture = self._seed_admin_fixture()
+            student_email = db.session.get(User, fixture['target_student_id']).email
+        admin = self._admin_client(fixture['actor_admin_id'])
+        subject = f'Personal {secrets.token_hex(3)}'
+
+        response = admin.post('/admin/notifications', data=self._csrf_payload({
+            'action': 'compose', 'channel': 'announcement', 'announcement_target_role': 'person',
+            'recipient': f'Target Student <{student_email}>', 'announcement_title': subject, 'announcement_body': 'Hello.'}))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('box=sent', response.headers['Location'])
+
+        with app.app_context():
+            message = Message.query.filter_by(subject=subject).one()
+            self.assertEqual(message.recipient_id, fixture['target_student_id'])
+            self.assertFalse(message.is_read)
+            student_user = db.session.get(User, fixture['target_student_id'])
+            self.assertGreaterEqual(_unread_announcement_count(student_user, 'student'), 1)
+            message_id = message.id
+
+        student = self._student_client(fixture['target_student_id'])
+        page = student.get(f'/announcements?id=m{message_id}').get_data(as_text=True)
+        self.assertIn(subject, page)
+        with app.app_context():
+            self.assertTrue(db.session.get(Message, message_id).is_read)
+
+        reply = student.post(f'/messages/{message_id}/reply', data=self._csrf_payload({'body': 'Thanks!'}))
+        self.assertEqual(reply.status_code, 302)
+        with app.app_context():
+            answer = Message.query.filter_by(sender_id=fixture['target_student_id'], recipient_id=fixture['actor_admin_id']).order_by(Message.id.desc()).first()
+            self.assertIsNotNone(answer)
+            self.assertEqual(answer.subject, f'Re: {subject}')
+
+    def test_user_cannot_reply_to_someone_elses_message(self):
+        from models import Message
+
+        with app.app_context():
+            fixture = self._seed_admin_fixture()
+            message = Message(sender_id=fixture['actor_admin_id'], recipient_id=fixture['target_teacher_id'], subject='Private', body='Not for students.')
+            db.session.add(message)
+            db.session.commit()
+            message_id = message.id
+            before = Message.query.filter_by(sender_id=fixture['target_student_id']).count()
+
+        student = self._student_client(fixture['target_student_id'])
+        student.post(f'/messages/{message_id}/reply', data=self._csrf_payload({'body': 'Sneaky reply'}))
+        with app.app_context():
+            self.assertEqual(Message.query.filter_by(sender_id=fixture['target_student_id']).count(), before)
+
+
+    def _make_user(self, role):
+        with app.app_context():
+            token = secrets.token_hex(4)
+            user = User(name=f'{role.title()} {token}', email=f'{role}.{token}@example.com', role=role)
+            user.set_password('x' * 12)
+            db.session.add(user)
+            db.session.commit()
+            return user.id
+
+    def _client_as(self, user_id, role):
+        client = app.test_client()
+        with client.session_transaction() as sess:
+            sess['user_id'] = user_id
+            sess['role'] = role
+            sess['_csrf_token'] = 'test-csrf-token'
+        return client
+
+    def test_teacher_assigns_assistant_who_then_works_only_in_that_class(self):
+        from models import Class, GradeRecord
+
+        with app.app_context():
+            fixture = self._seed_admin_fixture()
+            own_class = db.session.get(Class, fixture['class_id'])
+            teacher_id = own_class.teacher_id
+            other_class = Class(name=f'Other {secrets.token_hex(3)}', teacher_id=fixture['source_teacher_id'] if teacher_id != fixture['source_teacher_id'] else fixture['target_teacher_id'])
+            db.session.add(other_class)
+            db.session.commit()
+            other_class_id = other_class.id
+            student_id = fixture['target_student_id']
+            student = db.session.get(Student, student_id)
+            if own_class not in student.classes:
+                student.classes.append(own_class)
+                db.session.commit()
+        assistant_id = self._make_user('assistant')
+        with app.app_context():
+            assistant_email = db.session.get(User, assistant_id).email
+
+        teacher = self._client_as(teacher_id, 'teacher')
+        teacher.post(f"/teacher/class/{fixture['class_id']}/assistants",
+                     data=self._csrf_payload({'action': 'add', 'assistant': f'A <{assistant_email}>'}))
+        with app.app_context():
+            self.assertIn(assistant_id, [a.id for a in db.session.get(Class, fixture['class_id']).assistants])
+
+        assistant = self._client_as(assistant_id, 'assistant')
+        self.assertEqual(assistant.get('/assistant/dashboard').status_code, 200)
+        self.assertEqual(assistant.get('/teacher/attendance-hub').status_code, 200)
+        self.assertEqual(assistant.get(f"/teacher/history/{fixture['class_id']}").status_code, 200)
+        self.assertEqual(assistant.get(f'/teacher/history/{other_class_id}').status_code, 404)
+        for url in ('/teacher_dashboard', '/teacher/create_class', '/teacher/account', '/reports'):
+            self.assertIn(assistant.get(url).status_code, (302, 403), url)
+
+        assistant.post('/teacher/grade-entry', data=self._csrf_payload({
+            'class_id': str(fixture['class_id']), 'student_id': str(student_id),
+            'assessment_name': 'Quiz A', 'max_points': '100', 'score': '80'}))
+        with app.app_context():
+            grade = GradeRecord.query.filter(GradeRecord.assessment_name.like('Quiz A%')).order_by(GradeRecord.id.desc()).first()
+            self.assertIsNotNone(grade)
+            self.assertEqual(grade.entered_by_id, assistant_id)
+
+        teacher.post(f"/teacher/class/{fixture['class_id']}/assistants",
+                     data=self._csrf_payload({'action': 'remove', 'assistant_id': str(assistant_id)}))
+        self.assertEqual(assistant.get(f"/teacher/history/{fixture['class_id']}").status_code, 404)
+
+    def test_teacher_cannot_assign_assistants_to_someone_elses_class_or_non_assistants(self):
+        from models import Class
+
+        with app.app_context():
+            fixture = self._seed_admin_fixture()
+            owner_id = db.session.get(Class, fixture['class_id']).teacher_id
+            student_email = db.session.get(User, fixture['target_student_id']).email
+        outsider_teacher = self._make_user('teacher')
+        assistant_id = self._make_user('assistant')
+        with app.app_context():
+            assistant_email = db.session.get(User, assistant_id).email
+
+        self._client_as(outsider_teacher, 'teacher').post(
+            f"/teacher/class/{fixture['class_id']}/assistants",
+            data=self._csrf_payload({'action': 'add', 'assistant': assistant_email}))
+        self._client_as(owner_id, 'teacher').post(
+            f"/teacher/class/{fixture['class_id']}/assistants",
+            data=self._csrf_payload({'action': 'add', 'assistant': student_email}))
+        with app.app_context():
+            self.assertEqual(db.session.get(Class, fixture['class_id']).assistants, [])
 
     def test_admin_notifications_send_broadcast_works_in_dry_run(self):
         with app.app_context():
@@ -1131,7 +1461,7 @@ class AdminIntegrationRouteTests(unittest.TestCase):
                 follow_redirects=False,
             )
             self.assertEqual(response.status_code, 200)
-            self.assertIn(b'Email Notifications', response.data)
+            self.assertIn(b'Email delivery completed', response.data)
         finally:
             app.config['EMAIL_DRY_RUN'] = old_dry_run
 
@@ -1165,7 +1495,7 @@ class AdminIntegrationRouteTests(unittest.TestCase):
     def test_admin_can_update_and_delete_announcement_from_notifications_page(self):
         with app.app_context():
             fixture = self._seed_admin_fixture()
-            course = Course(title='Announcement Course', code='ANN-101', teacher_id=fixture['target_teacher_id'])
+            course = Course(title='Announcement Course', code=f'ANN-{uuid4().hex[:8]}', teacher_id=fixture['target_teacher_id'])
             db.session.add(course)
             db.session.flush()
             announcement = Announcement(
@@ -1302,125 +1632,6 @@ class AdminIntegrationRouteTests(unittest.TestCase):
 
         with app.app_context():
             self.assertIsNone(db.session.get(UserCalendarEvent, event_id))
-
-    def test_teacher_can_preview_student_dashboard_by_student_number(self):
-        token = uuid4().hex[:8]
-        with app.app_context():
-            fixture = self._seed_admin_fixture()
-
-            class_obj = db.session.get(Class, fixture['class_id'])
-            class_obj.teacher_id = fixture['target_teacher_id']
-
-            next_user_id = (db.session.query(db.func.max(User.id)).scalar() or 0) + 10
-            student_user = User(
-                id=next_user_id,
-                name=f'Lookup Student {token}',
-                email=f'lookup.student.{token}@example.com',
-                role='student',
-            )
-            student_user.set_password('Pass123!')
-            db.session.add(student_user)
-            db.session.flush()
-
-            student_profile = Student(id=student_user.id, student_number=f'LOOK-{token}')
-            class_obj.students.append(student_profile)
-
-            course = Course(title=f'Lookup Course {token}', code=f'LKP-{token}', teacher_id=fixture['target_teacher_id'])
-            db.session.add(course)
-            db.session.flush()
-
-            db.session.add(CourseEnrollment(student_id=student_profile.id, course_id=course.id))
-            db.session.add(
-                Announcement(
-                    title='Student Notice',
-                    body='Dashboard preview notice',
-                    author_id=fixture['actor_admin_id'],
-                    target_role='student',
-                    course_id=course.id,
-                )
-            )
-            db.session.add(
-                UserCalendarEvent(
-                    user_id=fixture['target_teacher_id'],
-                    title='Teacher Reminder',
-                    event_type='activity',
-                    event_date=datetime.date(2026, 4, 15),
-                    note='n',
-                )
-            )
-            db.session.commit()
-
-            lookup_number = student_profile.student_number
-
-        client = self._teacher_client(fixture['target_teacher_id'])
-        response = client.get(f'/teacher_dashboard?student_number={lookup_number}', follow_redirects=False)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(lookup_number.encode('utf-8'), response.data)
-        self.assertIn(b'Lookup Student', response.data)
-
-    def test_teacher_cannot_preview_student_outside_own_classes(self):
-        token = uuid4().hex[:8]
-        with app.app_context():
-            fixture = self._seed_admin_fixture()
-
-            next_user_id = (db.session.query(db.func.max(User.id)).scalar() or 0) + 10
-            external_student_user = User(
-                id=next_user_id,
-                name=f'External Student {token}',
-                email=f'external.student.{token}@example.com',
-                role='student',
-            )
-            external_student_user.set_password('Pass123!')
-            db.session.add(external_student_user)
-            db.session.flush()
-
-            external_student = Student(id=external_student_user.id, student_number=f'OUT-{token}')
-            db.session.add(external_student)
-            db.session.commit()
-
-            lookup_number = external_student.student_number
-
-        client = self._teacher_client(fixture['target_teacher_id'])
-        response = client.get(f'/teacher_dashboard?student_number={lookup_number}', follow_redirects=False)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b'This student number was not found in your classes.', response.data)
-
-    def test_teacher_can_preview_student_registered_to_taught_course(self):
-        token = uuid4().hex[:8]
-        with app.app_context():
-            fixture = self._seed_admin_fixture()
-
-            next_user_id = (db.session.query(db.func.max(User.id)).scalar() or 0) + 10
-            student_user = User(
-                id=next_user_id,
-                name=f'Enrolled Student {token}',
-                email=f'enrolled.student.{token}@example.com',
-                role='student',
-            )
-            student_user.set_password('Pass123!')
-            db.session.add(student_user)
-            db.session.flush()
-
-            student_profile = Student(id=student_user.id, student_number=f'ENR-{token}')
-            db.session.add(student_profile)
-
-            course = Course(title=f'Enrollment Course {token}', code=f'ENR-{token}', teacher_id=fixture['target_teacher_id'])
-            db.session.add(course)
-            db.session.flush()
-
-            db.session.add(CourseEnrollment(student_id=student_profile.id, course_id=course.id))
-            db.session.commit()
-            lookup_number = student_profile.student_number
-            course_code = course.code
-            student_email = student_user.email
-
-        client = self._teacher_client(fixture['target_teacher_id'])
-        response = client.get(f'/teacher_dashboard?student_number={lookup_number}', follow_redirects=False)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(lookup_number.encode('utf-8'), response.data)
-        self.assertIn(b'Enrolled Student', response.data)
-        self.assertIn(course_code.encode('utf-8'), response.data)
-        self.assertIn(student_email.encode('utf-8'), response.data)
 
     def test_admin_password_reset_success_path(self):
         with app.app_context():

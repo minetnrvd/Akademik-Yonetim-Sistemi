@@ -31,10 +31,10 @@
                 <input type="datetime-local" name="add_drop_start" value="{{ policy.add_drop_start.strftime('%Y-%m-%dT%H:%M') if policy and policy.add_drop_start else '' }}">
                 <label>{{ lang_text('Bitiş', 'End') }}</label>
                 <input type="datetime-local" name="add_drop_end" value="{{ policy.add_drop_end.strftime('%Y-%m-%dT%H:%M') if policy and policy.add_drop_end else '' }}">
-                <label>{{ lang_text('Min Kredi', 'Min Credits') }}</label>
+                <label>{{ lang_text('Min AKTS', 'Min ECTS') }}</label>
                 <input type="number" name="min_credits" min="0" value="{{ policy.min_credits if policy else 0 }}">
-                <label>{{ lang_text('Max Kredi', 'Max Credits') }}</label>
-                <input type="number" name="max_credits" min="1" value="{{ policy.max_credits if policy else 30 }}">
+                <label>{{ lang_text('Max AKTS', 'Max ECTS') }}</label>
+                <input type="number" name="max_credits" min="1" value="{{ policy.max_credits if policy else 45 }}">
                 <label><input type="checkbox" name="is_locked" {% if policy and policy.is_locked %}checked{% endif %}> {{ lang_text('İşlemleri kilitle', 'Lock operations') }}</label>
                 <button type="submit">{{ lang_text('Kaydet', 'Save') }}</button>
             </form>

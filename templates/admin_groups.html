@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}{{ lang_text('Bölüm Grupları', 'Department Groups') }}{% endblock %}
+
+{% block content %}
+<div class="mb-head">
+    <div>
+        <h1>{{ lang_text('Bölüm Grupları', 'Department Groups') }}</h1>
+        <p>{{ lang_text('Öğrencileri bölümlerine göre gruplayın; duyuru ve e-postaları yalnızca bir bölüme gönderebilirsiniz.', 'Group students by department to send announcements and e-mails to a single department.') }}</p>
+    </div>
+</div>
+
+<div class="grp-layout">
+    <aside class="grp-side">
+        <ul class="grp-list">
+            {% for g in groups %}
+            <li>
+                <a href="{{ url_for('admin_groups', id=g.id) }}" class="grp-item{% if selected and g.id == selected.id %} is-selected{% endif %}">
+                    <span class="grp-code">{{ g.code }}</span>
+                    <span class="grp-name">{{ g.name }}</span>
+                    <span class="grp-count">{{ g.students | length }}</span>
+                </a>
+            </li>
+            {% else %}
+            <li class="grp-empty-list">{{ lang_text('Henüz grup yok.', 'No groups yet.') }}</li>
+            {% endfor %}
+        </ul>
+
+        <form method="post" class="grp-create">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="create_group">
+            <h2>{{ lang_text('Yeni grup', 'New group') }}</h2>
+            <label class="cmp-field">
+                <span>{{ lang_text('Kod', 'Code') }}</span>
+                <input type="text" name="code" maxlength="20" placeholder="{{ lang_text('örn. CMP', 'e.g. CMP') }}" required>
+            </label>
+            <label class="cmp-field">
+                <span>{{ lang_text('Bölüm adı', 'Department name') }}</span>
+                <input type="text" name="name" maxlength="120" placeholder="{{ lang_text('örn. Bilgisayar Mühendisliği', 'e.g. Computer Engineering') }}" required>
+            </label>
+            <button type="submit">{{ lang_text('Grup oluştur', 'Create group') }}</button>
+        </form>
+    </aside>
+
+    <section class="grp-main">
+        {% if selected %}
+        <header class="grp-head">
+            <div>
+                <h2><span class="grp-code">{{ selected.code }}</span> {{ selected.name }}</h2>
+                <p>{{ members | length }} {{ lang_text('öğrenci', 'students') }} · {{ lang_text('Danışman', 'Advisor') }}: {{ selected.advisor.name if selected.advisor else lang_text('atanmadı', 'not assigned') }}</p>
+            </div>
+            <details class="grp-settings">
+                <summary>{{ lang_text('Grup ayarları', 'Group settings') }}</summary>
+                <div class="grp-settings-panel">
+                    <form method="post" class="grp-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="update_group">
+                        <input type="hidden" name="group_id" value="{{ selected.id }}">
+                        <label class="cmp-field"><span>{{ lang_text('Kod', 'Code') }}</span><input type="text" name="code" maxlength="20" value="{{ selected.code }}" required></label>
+                        <label class="cmp-field"><span>{{ lang_text('Bölüm adı', 'Department name') }}</span><input type="text" name="name" maxlength="120" value="{{ selected.name }}" required></label>
+                        <button type="submit" class="mb-btn">{{ lang_text('Kaydet', 'Save') }}</button>
+                    </form>
+                    <form method="post" class="grp-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="set_advisor">
+                        <input type="hidden" name="group_id" value="{{ selected.id }}">
+                        <label class="cmp-field"><span>{{ lang_text('Bölüm danışmanı', 'Department advisor') }}</span>
+                            <select name="advisor_id">
+                                <option value="">{{ lang_text('Atanmadı', 'Not assigned') }}</option>
+                                {% for teacher in advisor_options %}
+                                <option value="{{ teacher.id }}" {% if teacher.id == selected.advisor_id %}selected{% endif %}>{{ teacher.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <button type="submit" class="mb-btn">{{ lang_text('Kaydet', 'Save') }}</button>
+                    </form>
+                    <form method="post" data-confirm="{{ lang_text('Grup silinsin mi? Öğrenci hesapları silinmez.', 'Delete this group? Student accounts are kept.') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="delete_group">
+                        <input type="hidden" name="group_id" value="{{ selected.id }}">
+                        <button type="submit" class="mb-btn mb-btn-danger">{{ lang_text('Grubu sil', 'Delete group') }}</button>
+                    </form>
+                </div>
+            </details>
+        </header>
+
+        <div class="grp-tools">
+            <form method="post" class="grp-inline grp-add">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="add_member">
+                <input type="hidden" name="group_id" value="{{ selected.id }}">
+                <label class="cmp-field">
+                    <span>{{ lang_text('Öğrenci ekle', 'Add student') }}</span>
+                    <input type="text" name="student" list="grp-candidates" autocomplete="off"
+                           placeholder="{{ lang_text('Öğrenci no, ad veya e-posta yazın', 'Type a student number, name or e-mail') }}" required>
+                </label>
+                <datalist id="grp-candidates">
+                    {% for s in candidates %}
+                    <option value="{{ s.student_number }} — {{ s.user.name if s.user else '' }}">{{ s.user.email if s.user else '' }}</option>
+                    {% endfor %}
+                </datalist>
+                <button type="submit" class="mb-btn">{{ lang_text('Ekle', 'Add') }}</button>
+            </form>
+
+            <form method="post" enctype="multipart/form-data" class="grp-inline grp-import">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="import_members">
+                <input type="hidden" name="group_id" value="{{ selected.id }}">
+                <label class="cmp-field">
+                    <span>{{ lang_text('Excel / CSV ile içe aktar', 'Import from Excel / CSV') }}</span>
+                    <input type="file" name="file" accept=".xlsx,.xlsm,.csv" required>
+                </label>
+                <button type="submit" class="mb-btn">{{ lang_text('İçe aktar', 'Import') }}</button>
+            </form>
+            <p class="cmp-hint grp-hint">
+                {{ lang_text('Dosyada "Öğrenci No" veya "E-posta" sütunu olmalı; başlık yoksa ilk sütun okunur.', 'The file needs a "Student No" or "E-mail" column; without a header the first column is used.') }}
+                <a href="{{ url_for('static', filename='samples/bolum-grubu-ornek.csv') }}" download>{{ lang_text('Örnek dosyayı indir', 'Download a sample file') }}</a>
+            </p>
+        </div>
+
+        {% if members %}
+        <div class="grp-table-wrap">
+            <table class="grp-table">
+                <thead>
+                    <tr>
+                        <th>{{ lang_text('Öğrenci No', 'Student No') }}</th>
+                        <th>{{ lang_text('Ad Soyad', 'Name') }}</th>
+                        <th>{{ lang_text('E-posta', 'E-mail') }}</th>
+                        <th>{{ lang_text('Kayıtlı bölüm', 'Registered department') }}</th>
+                        <th>{{ lang_text('Diğer gruplar', 'Other groups') }}</th>
+                        <th class="grp-col-action"><span class="sr-only">{{ lang_text('İşlem', 'Action') }}</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in members %}
+                    <tr>
+                        <td>{{ s.student_number }}</td>
+                        <td>{{ s.user.name if s.user else '-' }}</td>
+                        <td>{{ s.user.email if s.user else '-' }}</td>
+                        <td>{{ s.university_department or '-' }}</td>
+                        <td>{% for other in s.groups if other.id != selected.id %}<span class="grp-chip">{{ other.code }}</span>{% else %}-{% endfor %}</td>
+                        <td class="grp-col-action">
+                            <form method="post">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="action" value="remove_member">
+                                <input type="hidden" name="group_id" value="{{ selected.id }}">
+                                <input type="hidden" name="student_id" value="{{ s.id }}">
+                                <button type="submit" class="grp-remove" title="{{ lang_text('Gruptan çıkar', 'Remove from group') }}">{{ lang_text('Çıkar', 'Remove') }}</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="mb-empty">{{ lang_text('Bu grupta henüz öğrenci yok. Yukarıdan ekleyin ya da bir dosya içe aktarın.', 'No students in this group yet. Add them above or import a file.') }}</div>
+        {% endif %}
+
+        {% else %}
+        <div class="mb-empty">{{ lang_text('Başlamak için soldan bir bölüm grubu oluşturun.', 'Create a department group on the left to get started.') }}</div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

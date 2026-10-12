@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ lang_text('Yoklama Yonetimi', 'Attendance Management') }}{% endblock %}
+{% block title %}{{ lang_text('Yoklama Yönetimi', 'Attendance Management') }}{% endblock %}
 
 {% block content %}
 <style>
@@ -170,13 +170,14 @@
 
 <div class="hub-shell">
     <div class="hub-top">
-        <h1>{{ lang_text('Yoklama Yonetimi', 'Attendance Management') }}</h1>
+        <h1>{{ lang_text('Yoklama Yönetimi', 'Attendance Management') }}</h1>
         <div>
-            <a href="{{ url_for('teacher_dashboard') }}"><button type="button">{{ lang_text('Dashboarda Don', 'Back to Dashboard') }}</button></a>
+            <a href="{{ url_for('teacher_dashboard') }}"><button type="button">{{ lang_text('Dashboarda Dön', 'Back to Dashboard') }}</button></a>
         </div>
     </div>
 
     <section class="control-grid">
+        {% if nav_role == 'teacher' %}
         <div class="section-card">
             <h2 class="section-title">{{ t('create_class') }}</h2>
             <form class="form-stack" method="post" action="{{ url_for('create_class') }}">
@@ -185,6 +186,7 @@
                 <button type="submit">{{ t('create') }}</button>
             </form>
         </div>
+        {% endif %}
 
         <div class="section-card">
             <h2 class="section-title">{{ t('start_attendance') }}</h2>
@@ -281,12 +283,50 @@
 
                     <hr>
                     <a href="{{ url_for('teacher_class_history', class_id=cls.id) }}"><button type="button">{{ t('attendance_history') }}</button></a>
+
+                    {% if nav_role == 'teacher' %}
+                    <div class="hub-assistants">
+                        <h3>{{ lang_text('Asistanlar', 'Assistants') }}</h3>
+                        {% if cls.assistants %}
+                        <ul>
+                            {% for a in cls.assistants %}
+                            <li>
+                                <span>{{ a.name }} <small>{{ a.email }}</small></span>
+                                <form method="post" action="{{ url_for('teacher_class_assistants', class_id=cls.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="action" value="remove">
+                                    <input type="hidden" name="assistant_id" value="{{ a.id }}">
+                                    <button type="submit" class="grp-remove">{{ lang_text('Çıkar', 'Remove') }}</button>
+                                </form>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="empty-note">{{ lang_text('Bu derse henüz asistan atanmadı.', 'No assistants assigned yet.') }}</p>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('teacher_class_assistants', class_id=cls.id) }}" class="grp-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="action" value="add">
+                            <label class="cmp-field">
+                                <span>{{ lang_text('Asistan ekle', 'Add assistant') }}</span>
+                                <input type="text" name="assistant" list="hub-assistant-options" autocomplete="off" required
+                                       placeholder="{{ lang_text('Asistan adı veya e-postası', 'Assistant name or e-mail') }}">
+                            </label>
+                            <button type="submit" class="mb-btn">{{ lang_text('Ekle', 'Add') }}</button>
+                        </form>
+                    </div>
+                    {% endif %}
                 </div>
             {% endfor %}
         {% else %}
             <p class="empty-note">{{ t('you_have_not_created_class') }}</p>
         {% endif %}
     </section>
+    {% if nav_role == 'teacher' %}
+    <datalist id="hub-assistant-options">
+        {% for a in assistant_options %}<option value="{{ a.name }} <{{ a.email }}>"></option>{% endfor %}
+    </datalist>
+    {% endif %}
 </div>
 
 <script>

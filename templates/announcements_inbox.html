@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}{{ lang_text('Duyurular', 'Announcements') }}{% endblock %}
+
+{% block content %}
+{% set target_labels = dict(audience_options()) %}
+{% macro audience_of(item) -%}
+    {%- if item.kind == 'message' -%}{{ item.recipient }}
+    {%- elif item.group -%}{{ item.group.code }} · {{ item.group.name }}
+    {%- else -%}{{ target_labels.get(item.obj.target_role or 'all', item.obj.target_role) }}{%- endif -%}
+{%- endmacro %}
+
+<div class="mb-head">
+    <div>
+        <h1>{{ lang_text('Duyurular', 'Announcements') }}</h1>
+        <p>
+            {% if box == 'approvals' %}
+                {{ approval_count }} {{ lang_text('program onayınızı bekliyor', 'plans awaiting your approval') }}
+            {% elif new_count %}
+                {{ new_count }} {{ lang_text('okunmamış', 'unread') }}
+            {% else %}
+                {{ lang_text('Tümü okundu.', 'You are all caught up.') }}
+            {% endif %}
+        </p>
+    </div>
+    {% if nav_role in ('admin', 'registrar') %}
+    <a class="mb-compose" href="{{ url_for('admin_notifications') }}">{{ lang_text('Yeni Duyuru / Mesaj', 'New Announcement / Message') }}</a>
+    {% endif %}
+</div>
+
+<nav class="mb-tabs" aria-label="{{ lang_text('Duyuru kutusu', 'Announcement box') }}">
+    <a href="{{ url_for('announcements_inbox', box='inbox') }}" {% if box == 'inbox' %}aria-current="page"{% endif %}>
+        {{ lang_text('Gelen', 'Inbox') }} <span class="mb-count">{{ received_count }}</span>
+    </a>
+    {% if can_send %}
+    <a href="{{ url_for('announcements_inbox', box='sent') }}" {% if box == 'sent' %}aria-current="page"{% endif %}>
+        {{ lang_text('Gönderilen', 'Sent') }} <span class="mb-count">{{ sent_count }}</span>
+    </a>
+    {% endif %}
+    {% if show_approvals %}
+    <a href="{{ url_for('announcements_inbox', box='approvals') }}" {% if box == 'approvals' %}aria-current="page"{% endif %}>
+        {{ lang_text('Ders seçme onayı', 'Course approvals') }} <span class="mb-count">{{ approval_count }}</span>
+    </a>
+    {% endif %}
+</nav>
+
+{% if box == 'approvals' %}
+{% if approvals %}
+<div class="mb-layout">
+    <ul class="mb-list">
+        {% for plan in approvals %}
+        {% set st = plan.student %}
+        <li>
+            <a class="mb-item{% if selected_plan and plan.id == selected_plan.id %} is-selected{% endif %}"
+               href="{{ url_for('announcements_inbox', box='approvals', id=plan.student_id) }}">
+                <span class="mb-item-top">
+                    <span class="mb-from">{{ st.student_number }}</span>
+                    <span class="mb-date">{{ plan.submitted_at.strftime('%d.%m.%Y') if plan.submitted_at else '' }}</span>
+                </span>
+                <span class="mb-title">{{ st.user.name if st.user else '-' }}</span>
+                <span class="mb-snippet">{{ st.course_enrollments|length }} {{ lang_text('ders', 'courses') }} · {{ st.course_enrollments|sum(attribute='course.ects') }} {{ lang_text('AKTS', 'ECTS') }}</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+
+    {% if selected_plan %}
+    {% set st = selected_plan.student %}
+    <article class="mb-reader" aria-live="polite">
+        <h2>{{ lang_text('Dönem ders programı', 'Term course plan') }} · {{ st.user.name if st.user else '-' }}</h2>
+        <dl class="mb-meta">
+            <div><dt>{{ lang_text('Öğrenci no', 'Student no') }}</dt><dd>{{ st.student_number }}</dd></div>
+            <div><dt>{{ lang_text('Gönderim', 'Submitted') }}</dt><dd>{{ selected_plan.submitted_at.strftime('%d.%m.%Y %H:%M') if selected_plan.submitted_at else '-' }}</dd></div>
+            <div><dt>{{ lang_text('Toplam AKTS', 'Total ECTS') }}</dt><dd>{{ st.course_enrollments|sum(attribute='course.ects') }}</dd></div>
+        </dl>
+        <table class="tp-table">
+            <thead><tr><th>{{ lang_text('Kod', 'Code') }}</th><th>{{ lang_text('Ders', 'Course') }}</th><th>{{ lang_text('Kredi', 'Credit') }}</th><th>{{ lang_text('AKTS', 'ECTS') }}</th><th>{{ lang_text('Saat', 'Schedule') }}</th></tr></thead>
+            <tbody>
+                {% for en in st.course_enrollments|sort(attribute='course.code') %}
+                <tr><td>{{ en.course.code }}</td><td>{{ en.course.title }}</td><td>{{ en.course.credit }}</td><td>{{ en.course.ects }}</td><td>{{ en.course.schedule_slot or '-' }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="mb-actions">
+            <form method="post" action="{{ url_for('teacher_term_plan_decision', student_id=st.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="approve">
+                <button type="submit" class="mb-btn">{{ lang_text('Onayla', 'Approve') }}</button>
+            </form>
+            <form method="post" action="{{ url_for('teacher_view_student', student_id=st.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="mb-btn">{{ lang_text('Dersleri düzenle', 'Edit courses') }}</button>
+            </form>
+        </div>
+        <form method="post" action="{{ url_for('teacher_term_plan_decision', student_id=st.id) }}" class="mb-reply">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="reject">
+            <label class="cmp-field">
+                <span>{{ lang_text('Red sebebi (öğrenciye mesaj olarak gider)', 'Reason for rejection (sent to the student)') }}</span>
+                <textarea name="reason" maxlength="500" required placeholder="{{ lang_text('Örn. CMP201 yerine CMP205 almalısın.', 'E.g. take CMP205 instead of CMP201.') }}"></textarea>
+            </label>
+            <div class="mb-reply-actions"><button type="submit" class="mb-btn mb-btn-danger">{{ lang_text('Reddet', 'Reject') }}</button></div>
+        </form>
+    </article>
+    {% endif %}
+</div>
+{% else %}
+<div class="mb-empty">{{ lang_text('Onayınızı bekleyen ders programı yok.', 'No course plans are waiting for your approval.') }}</div>
+{% endif %}
+{% elif items %}
+<div class="mb-layout">
+    <ul class="mb-list">
+        {% for item in items %}
+        {% set is_new = box == 'inbox' and item.key in new_keys %}
+        <li>
+            <a class="mb-item{% if selected and item.key == selected.key %} is-selected{% endif %}{% if is_new %} is-new{% endif %}"
+               href="{{ url_for('announcements_inbox', box=box, id=item.key) }}">
+                <span class="mb-item-top">
+                    <span class="mb-from">
+                        {% if is_new %}<span class="mb-dot" aria-label="{{ lang_text('Yeni', 'New') }}"></span>{% endif %}
+                        {% if item.kind == 'message' %}<span class="mb-kind">{{ lang_text('Mesaj', 'Message') }}</span>{% endif %}
+                        {% if box == 'sent' %}{{ audience_of(item) }}{% else %}{{ item.sender }}{% endif %}
+                    </span>
+                    <span class="mb-date">{{ item.created_at.strftime('%d.%m.%Y') if item.created_at else '' }}</span>
+                </span>
+                <span class="mb-title">{{ item.title }}</span>
+                <span class="mb-snippet">{{ item.body | truncate(90, True, '…') }}</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+
+    {% if selected %}
+    <article class="mb-reader" aria-live="polite">
+        <h2>{{ selected.title }}</h2>
+        <dl class="mb-meta">
+            <div><dt>{{ lang_text('Gönderen', 'From') }}</dt><dd>{{ selected.sender }}</dd></div>
+            <div><dt>{{ lang_text('Alıcı', 'To') }}</dt><dd>{{ audience_of(selected) }}</dd></div>
+            {% if selected.course %}
+            <div><dt>{{ lang_text('Ders', 'Course') }}</dt><dd>{{ selected.course.title }}</dd></div>
+            {% endif %}
+            <div><dt>{{ lang_text('Tarih', 'Date') }}</dt><dd>{{ selected.created_at.strftime('%d.%m.%Y %H:%M') if selected.created_at else '-' }}</dd></div>
+            {% if selected.ends_at %}
+            <div><dt>{{ lang_text('Yayın bitişi', 'Visible until') }}</dt><dd>{{ selected.ends_at.strftime('%d.%m.%Y %H:%M') }}</dd></div>
+            {% endif %}
+        </dl>
+        <div class="mb-body">{{ selected.body }}</div>
+
+        {% if selected.kind == 'message' and box == 'inbox' %}
+        <form method="post" action="{{ url_for('message_reply', message_id=selected.obj.id) }}" class="mb-reply">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label class="cmp-field">
+                <span>{{ lang_text('Yanıtla', 'Reply') }} · {{ selected.sender }}</span>
+                <textarea name="body" maxlength="2000" required placeholder="{{ lang_text('Yanıtınızı yazın…', 'Write your reply…') }}"></textarea>
+            </label>
+            <div class="mb-reply-actions"><button type="submit">{{ lang_text('Yanıt gönder', 'Send reply') }}</button></div>
+        </form>
+        {% endif %}
+
+        {% if selected.kind == 'announcement' and (nav_role == 'admin' or (nav_role == 'registrar' and selected.obj.author_id == session.get('user_id'))) %}
+        <div class="mb-actions">
+            <a class="mb-btn" href="{{ url_for('admin_notifications', edit=selected.obj.id) }}">{{ lang_text('Düzenle', 'Edit') }}</a>
+            <form method="post" action="{{ url_for('admin_notifications') }}"
+                  data-confirm="{{ lang_text('Bu duyuru silinsin mi?', 'Delete this announcement?') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="delete_announcement">
+                <input type="hidden" name="announcement_id" value="{{ selected.obj.id }}">
+                <input type="hidden" name="return_to" value="inbox">
+                <button type="submit" class="mb-btn mb-btn-danger">{{ lang_text('Sil', 'Delete') }}</button>
+            </form>
+        </div>
+        {% endif %}
+    </article>
+    {% endif %}
+</div>
+{% else %}
+<div class="mb-empty">
+    {% if box == 'sent' %}
+        {{ lang_text('Henüz bir şey göndermediniz.', 'You have not sent anything yet.') }}
+    {% else %}
+        {{ lang_text('Kutunuz boş.', 'Your inbox is empty.') }}
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

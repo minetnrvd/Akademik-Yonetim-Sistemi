@@ -1,0 +1,103 @@
+{# Shared top navigation, included by base.html for signed-in users. #}
+{% macro nav_link(endpoint, label) -%}
+<a class="pv-navlink" href="{{ url_for(endpoint) }}" {% if request.endpoint == endpoint %}aria-current="page"{% endif %}>{{ label }}</a>
+{%- endmacro %}
+
+{% macro menu_item(endpoint, label, desc) -%}
+<a href="{{ url_for(endpoint) }}" {% if request.endpoint == endpoint %}aria-current="page"{% endif %}><span>{{ label }}</span>{% if desc %}<small>{{ desc }}</small>{% endif %}</a>
+{%- endmacro %}
+
+{% macro menu_group(label, endpoints, badge=None) -%}
+<details class="pv-group">
+    <summary {% if request.endpoint in endpoints %}class="is-active"{% endif %}>{{ label }}{% if badge %} <span class="pv-badge">{{ badge }}</span>{% endif %}</summary>
+    <div class="pv-dropdown">{{ caller() }}</div>
+</details>
+{%- endmacro %}
+
+{% set home_endpoint = nav_role ~ '_dashboard' %}
+<header class="pv-topnav">
+    <a class="pv-brand" href="{{ url_for(home_endpoint) }}">{{ lang_text('Akademik Yönetim', 'Academic Management') }}</a>
+
+    <nav class="pv-menu" aria-label="{{ lang_text('Ana menü', 'Main menu') }}">
+        {{ nav_link(home_endpoint, lang_text('Ana Sayfa', 'Home')) }}
+
+        {% if nav_role == 'admin' %}
+            {% call menu_group(lang_text('Kullanıcılar', 'Users'), ['admin_user_inventory', 'admin_groups']) %}
+                {{ menu_item('admin_user_inventory', lang_text('Kullanıcı Listesi', 'User Inventory'), lang_text('Rol, kilit ve şifre yönetimi', 'Roles, locks and passwords')) }}
+                {{ menu_item('admin_groups', lang_text('Bölüm Grupları', 'Department Groups'), lang_text('Öğrencileri bölümlere göre grupla', 'Group students by department')) }}
+            {% endcall %}
+            {% call menu_group(lang_text('Akademik', 'Academic'), ['admin_class_assignments', 'admin_course_registration_window']) %}
+                {{ menu_item('admin_class_assignments', lang_text('Ders-Öğretmen Ataması', 'Class-Teacher Assignment'), lang_text('Derse öğretmen atama', 'Assign teachers to classes')) }}
+                {{ menu_item('admin_course_registration_window', lang_text('Ders Alma-Bırakma', 'Add-Drop Management'), lang_text('Dönem penceresi ve override', 'Term window and overrides')) }}
+            {% endcall %}
+            {{ nav_link('admin_notifications', lang_text('Duyurular', 'Announcements')) }}
+            {% set violations = stats.permission_denied_total if stats is defined and stats.permission_denied_total else None %}
+            {% set audit_endpoints = ['admin_health_status_report', 'admin_permission_audit_report', 'admin_operation_audit_report', 'admin_permission_matrix'] %}
+            <a class="pv-navlink" href="{{ url_for('admin_health_status_report') }}" {% if request.endpoint in audit_endpoints %}aria-current="page"{% endif %}>{{ lang_text('Denetim', 'Audit') }}{% if violations %} <span class="pv-badge">{{ violations }}</span>{% endif %}</a>
+
+        {% elif nav_role == 'registrar' %}
+            {% call menu_group(lang_text('Kullanıcılar', 'Users'), ['admin_user_inventory', 'admin_groups']) %}
+                {{ menu_item('admin_user_inventory', lang_text('Kullanıcı Listesi', 'User Inventory'), lang_text('Görüntüleme ve öğrenci şifresi sıfırlama', 'View users, reset student passwords')) }}
+                {{ menu_item('admin_groups', lang_text('Bölüm Grupları', 'Department Groups'), lang_text('Öğrencileri bölümlere göre grupla', 'Group students by department')) }}
+            {% endcall %}
+            {{ nav_link('admin_notifications', lang_text('Duyurular', 'Announcements')) }}
+
+        {% elif nav_role == 'assistant' %}
+            {{ nav_link('teacher_attendance_hub', lang_text('Yoklama', 'Attendance')) }}
+            {{ nav_link('teacher_grade_entry', lang_text('Not Girişi', 'Grade Entry')) }}
+            {{ nav_link('teacher_course_roster', lang_text('Ders Listesi', 'Course Roster')) }}
+
+        {% elif nav_role == 'teacher' %}
+            {{ nav_link('teacher_attendance_hub', lang_text('Yoklama', 'Attendance')) }}
+            {{ nav_link('teacher_grade_entry', lang_text('Not Girişi', 'Grade Entry')) }}
+            {{ nav_link('teacher_course_roster', lang_text('Ders Listesi', 'Course Roster')) }}
+            {{ nav_link('teacher_advisees', lang_text('Danışmanlık', 'Advisees')) }}
+            {{ nav_link('reports', lang_text('Raporlar', 'Reports')) }}
+
+        {% elif nav_role == 'student' %}
+            {% call menu_group(lang_text('Akademik', 'Academic'), ['student_term_courses', 'student_transcript', 'student_exams', 'student_academic_calendar']) %}
+                {{ menu_item('student_term_courses', t('term_courses'), t('term_courses_desc')) }}
+                {{ menu_item('student_transcript', t('transcript'), t('transcript_desc')) }}
+                {{ menu_item('student_exams', t('exams'), t('exams_desc')) }}
+                {{ menu_item('student_academic_calendar', t('academic_calendar'), t('academic_calendar_desc')) }}
+            {% endcall %}
+            {{ nav_link('student_absence', t('absence')) }}
+            {{ nav_link('reports', lang_text('Raporlar', 'Reports')) }}
+            {% call menu_group(lang_text('Kişisel Bilgiler', 'Personal Info'), ['student_identity_info', 'student_education_info', 'student_family_info', 'student_documents_info', 'student_contact_info']) %}
+                {{ menu_item('student_identity_info', t('identity_information'), t('identity_information_desc')) }}
+                {{ menu_item('student_education_info', t('education_information'), t('education_information_desc')) }}
+                {{ menu_item('student_family_info', t('family_information'), t('family_information_desc')) }}
+                {{ menu_item('student_documents_info', t('documents'), t('documents_desc')) }}
+                {{ menu_item('student_contact_info', t('contact'), t('contact_desc')) }}
+            {% endcall %}
+            {% call menu_group(lang_text('Mali İşler', 'Finance'), ['student_current_account', 'student_payment_info']) %}
+                {{ menu_item('student_current_account', t('current_account'), t('current_account_desc')) }}
+                {{ menu_item('student_payment_info', t('payments'), t('payments_desc')) }}
+            {% endcall %}
+        {% endif %}
+    </nav>
+
+    <div class="pv-user">
+        {% include '_prefs.html' %}
+        {% set unread_label = lang_text('Duyurular', 'Announcements') ~ (' (' ~ nav_unread_announcements ~ ' ' ~ lang_text('yeni', 'new') ~ ')' if nav_unread_announcements else '') %}
+        <a class="pv-bell" href="{{ url_for('announcements_inbox') }}" aria-label="{{ unread_label }}" title="{{ unread_label }}" {% if request.endpoint == 'announcements_inbox' %}aria-current="page"{% endif %}>
+            <svg viewBox="0 0 512 512" aria-hidden="true">
+                <path d="M48 64C21.5 64 0 85.5 0 112c0 15.1 7.1 29.3 19.2 38.4L236.8 313.6c11.4 8.5 27 8.5 38.4 0L492.8 150.4c12.1-9.1 19.2-23.3 19.2-38.4c0-26.5-21.5-48-48-48H48zM0 176V384c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V176L294.4 339.2c-22.8 17.1-54 17.1-76.8 0L0 176z"/>
+            </svg>
+            {% if nav_unread_announcements %}<span class="pv-bell-count">{{ nav_unread_announcements if nav_unread_announcements < 100 else '99+' }}</span>{% endif %}
+        </a>
+        <a class="pv-user-name" href="{{ url_for(nav_role ~ '_account') }}" title="{{ lang_text('Hesabım', 'My Account') }}" {% if request.endpoint == nav_role ~ '_account' %}aria-current="page"{% endif %}>{{ nav_user_name }}</a>
+        <a class="pv-logout" href="{{ url_for('logout') }}">{{ lang_text('Çıkış', 'Logout') }}</a>
+    </div>
+</header>
+<script>
+    // One dropdown open at a time; close on outside click or Escape.
+    document.addEventListener('click', function (e) {
+        document.querySelectorAll('.pv-group[open]').forEach(function (d) {
+            if (!d.contains(e.target)) d.removeAttribute('open');
+        });
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') document.querySelectorAll('.pv-group[open]').forEach(function (d) { d.removeAttribute('open'); });
+    });
+</script>
